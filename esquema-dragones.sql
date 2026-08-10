@@ -269,9 +269,9 @@ create policy "preferencia_upsert" on preferencia_usuario
 insert into tema (nombre, primary_color, secondary_color, accent_color,
                   background_color, surface_color, success_color, warning_color,
                   text_primary, text_secondary)
-select 'Original', '#8B5CF6', '#6EE7B7', '#A78BFA',
-       '#FBF9F4', '#FFFFFF', '#22C55E', '#F59E0B',
-       '#1F2937', '#6B7280'
+select 'Original', '#7c3aed', '#3b82f6', '#a78bfa',
+       '#faf6ef', '#ffffff', '#22c55e', '#e08a2c',
+       '#241f38', '#84808a'
 where not exists (select 1 from tema where nombre = 'Original');
 
 insert into dragon (nombre, descripcion, asset_key, id_tema, credit_cost,

@@ -89,12 +89,31 @@ Ver `esquema.sql` para el detalle (enums, RLS, trigger de alta). Puntos clave:
 - Antes de agregar cualquier feature, pasala por: *¿ayuda a planificar, cumplir o entender los
   objetivos?* Si no, no va.
 
-**Fase actual: Fase 1 — Base de datos y capa de datos (completada).**
-Hecho: `esquema.sql` + `esquema-dragones.sql` aplicados en Supabase; tipos generados en
-`lib/types.ts` (`supabase gen types`); capa de datos tipada en `/lib/data`
-(`categorias`, `objetivos` + `objetivo_dia`, `registros`, `tareas`).
-Pendiente de verificación: un select **autenticado** de prueba (se prueba en Fase 2).
-Próxima: **Fase 2 — Autenticación.**
+**Fase actual: Fase 2 — Autenticación (a probar en dispositivo).**
+Hecho Fase 1: `esquema.sql` + `esquema-dragones.sql` aplicados; tipos en `lib/types.ts`;
+capa de datos en `/lib/data` (`categorias`, `objetivos`+`objetivo_dia`, `registros`, `tareas`).
+Hecho Fase 2: auth 100% Supabase (`lib/data/auth.ts`); `SessionProvider` + `useSession`
+(`components/session-provider.tsx`); pantallas `app/(auth)/login.tsx` y `registro.tsx`;
+guard con `Stack.Protected` en `app/_layout.tsx`; React Query enchufado (QueryClientProvider).
+La **confirmación de email queda ACTIVADA** (igual que producción).
+
+**Design system integrado**: tokens en `constants/theme.ts` (única fuente de color, sin hex
+sueltos), componentes base en `components/` y `components/ui/` (`Card`, `ProgressBar`,
+`SpeechBubble`, `IconBadge`, `Tag`, `DragonMascot`, `ProfileButton`). Las 3 pantallas
+(`app/(tabs)/`) están con el diseño real pero **datos MOCK** — se cablean a datos reales en
+sus fases (Objetivos F4, Hoy F6, Progreso F8). `app/perfil.tsx` (modal) ya tiene logout real.
+
+**Arte de dragones**: `assets/dragons/<key>/dragon.png` + registro `constants/dragons.ts`
+(mapea `dragon.asset_key` → imagen, con require() estáticos). `DragonMascot` acepta
+`assetKey`. Arte fuente (alta resolución, referencias) en `art-source/` (no se empaqueta).
+Cuando llegue el sistema de temas (V3), `constants/theme.ts` pasa a ser el tema "Original"
+accedido vía `useTheme()`, y `DragonMascot` recibe el `asset_key` del dragón equipado.
+
+**Fase 3 hecha:** CRUD de categorías en `app/categorias.tsx` (React Query: listar/crear/
+actualizar/eliminar con `lib/data/categorias.ts`; formulario en modal con nombre + emoji +
+color). Acceso desde **Perfil → Categorías**. Falta cablearlas como selector en los
+formularios de objetivos/tareas (Fases 4/5).
+Próxima: **Fase 4 — Objetivos (crear/editar/eliminar).**
 
 # ANEXO — Dragones, temas, XP y créditos (recompensas)
 

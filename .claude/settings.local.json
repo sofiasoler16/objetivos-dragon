@@ -18,7 +18,10 @@
       "Bash(echo \"exit: $?\")",
       "Bash(grep -nE \"^      [a-z_]+: \\\\{$\" lib/types.ts)",
       "Bash(cd /home/sofisoler/.claude/projects/-home-sofisoler-Documentos-App-Objectives-dragon/memory/)",
-      "Bash(cat MEMORY.md)"
+      "Bash(cat MEMORY.md)",
+      "Bash(timeout 90 bash -c 'until [ -f .expo/types/router.d.ts ] && grep -q \"registro\" .expo/types/router.d.ts; do sleep 2; done')",
+      "Bash(python3 -c \"from PIL import Image; im=Image.open\\('design/dragon.png'\\); print\\('modo:', im.mode, 'tam:', im.size\\)\")",
+      "Bash(python3 -)"
     ]
   }
 }

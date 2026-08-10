@@ -1,29 +1,37 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { colors } from '@/constants/theme';
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: true,
-        tabBarActiveTintColor: '#7C3AED',
+        headerShown: false,
+        tabBarActiveTintColor: '#fff',
+        tabBarInactiveTintColor: '#9891ab',
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.divider,
+          height: 80,
+          paddingTop: 8,
+          paddingBottom: 8,
+        },
+        tabBarLabelStyle: { fontSize: 10.5, fontWeight: '700' },
+        tabBarActiveBackgroundColor: colors.purple,
+        tabBarItemStyle: { borderRadius: 18, marginHorizontal: 8, marginVertical: 6 },
       }}>
       <Tabs.Screen
         name="objetivos"
         options={{
           title: 'Objetivos',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="flag-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="disc-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="index"
         options={{
           title: 'Hoy',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="today-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="sunny-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -31,7 +39,7 @@ export default function TabsLayout() {
         options={{
           title: 'Progreso',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart-outline" size={size} color={color} />
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
         }}
       />
