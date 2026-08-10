@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "_tmp_expo",
-    "slug": "_tmp_expo",
+    "name": "Objetivos Dragón",
+    "slug": "objetivos-dragon",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "tmpexpo",
+    "scheme": "objetivosdragon",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"

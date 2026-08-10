@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx expo *)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -H 'apikey: sb_publishable_xAECQJFw07z6fYZyJVrC0Q_IAl3YfrW' https://wcmsjoujjgsvxrchmziq.supabase.co/rest/v1/)",
+      "Bash(curl -s -H 'apikey: sb_publishable_xAECQJFw07z6fYZyJVrC0Q_IAl3YfrW' https://wcmsjoujjgsvxrchmziq.supabase.co/rest/v1/)",
+      "Bash(curl -s -o /dev/null -w 'status: %{http_code}\\\\n' -H 'apikey: sb_publishable_xAECQJFw07z6fYZyJVrC0Q_IAl3YfrW' -H 'Authorization: Bearer sb_publishable_xAECQJFw07z6fYZyJVrC0Q_IAl3YfrW' https://wcmsjoujjgsvxrchmziq.supabase.co/rest/v1/)",
+      "Bash(curl -s -w '\\\\nstatus: %{http_code}\\\\n' -H 'apikey: sb_publishable_xAECQJFw07z6fYZyJVrC0Q_IAl3YfrW' 'https://wcmsjoujjgsvxrchmziq.supabase.co/rest/v1/perfil?select=*&limit=1')",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/expo/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/react-native/package.json'\\).version\\)\")",
+      "Bash(npm view *)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\).on\\('end',\\(\\)=>{const v=JSON.parse\\(d\\);console.log\\(v.slice\\(-12\\).join\\(', '\\)\\)}\\)\")",
+      "Bash(echo \"expo ahora: $\\(node -e \"console.log\\(require\\('./node_modules/expo/package.json'\\).version\\)\"\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"for \\(const p of ['expo','react','react-native','expo-router']\\) console.log\\(p, require\\('./node_modules/'+p+'/package.json'\\).version\\)\")",
+      "Bash(npx -y supabase --version)",
+      "Bash(npx supabase *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(grep -nE \"^      [a-z_]+: \\\\{$\" lib/types.ts)",
+      "Bash(cd /home/sofisoler/.claude/projects/-home-sofisoler-Documentos-App-Objectives-dragon/memory/)",
+      "Bash(cat MEMORY.md)"
+    ]
+  }
+}
