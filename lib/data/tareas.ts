@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import type { Tables, TablesInsert, TablesUpdate } from '../types';
 import { requireUserId } from './_helpers';
+import { motivoPorPrioridad, type Prioridad, recompensaSegura, revocacionSegura } from './recompensas';
 
 export type Tarea = Tables<'tarea'>;
 /** Al crear no se pasa `id_usuario`: lo inyecta la capa de datos desde la sesión. */
@@ -18,6 +19,16 @@ export async function listarTareas(opciones?: {
     query = query.eq('completada', opciones.completadas);
   }
   const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+export async function obtenerTarea(id_tarea: string): Promise<Tarea | null> {
+  const { data, error } = await supabase
+    .from('tarea')
+    .select('*')
+    .eq('id_tarea', id_tarea)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -48,11 +59,18 @@ export async function actualizarTarea(
 }
 
 /** Completar/descompletar: setea `fecha_completada` en consecuencia. */
-export function completarTarea(id_tarea: string, completada = true): Promise<Tarea> {
-  return actualizarTarea(id_tarea, {
+export async function completarTarea(
+  id_tarea: string,
+  completada = true,
+  prioridad: Prioridad = 'MEDIA',
+): Promise<Tarea> {
+  const tarea = await actualizarTarea(id_tarea, {
     completada,
     fecha_completada: completada ? new Date().toISOString() : null,
   });
+  if (completada) await recompensaSegura(motivoPorPrioridad(prioridad), `tarea:${id_tarea}`);
+  else await revocacionSegura(`tarea:${id_tarea}`); // desmarcó → devolver
+  return tarea;
 }
 
 export async function eliminarTarea(id_tarea: string): Promise<void> {

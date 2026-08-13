@@ -7,6 +7,7 @@ import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider, useSession } from '@/components/session-provider';
+import { ThemeProvider as DragonThemeProvider } from '@/components/theme-provider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -40,7 +41,10 @@ function RootNavigator() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="perfil" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="mi-dragon" options={{ presentation: 'modal' }} />
       <Stack.Screen name="categorias" />
+      <Stack.Screen name="objetivo/[id]" />
+      <Stack.Screen name="tarea/[id]" />
       <Stack.Screen name="(auth)" />
     </Stack>
   );
@@ -55,7 +59,9 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <SessionProvider>
-              <RootNavigator />
+              <DragonThemeProvider>
+                <RootNavigator />
+              </DragonThemeProvider>
             </SessionProvider>
           </ThemeProvider>
         </SafeAreaProvider>

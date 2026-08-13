@@ -22,6 +22,26 @@ export async function listarObjetivos(opciones?: {
   return data;
 }
 
+/** Lista objetivos con sus días (ISO) resueltos en una sola consulta. */
+export async function listarObjetivosConDias(opciones?: {
+  soloActivos?: boolean;
+}): Promise<ObjetivoConDias[]> {
+  let query = supabase
+    .from('objetivo')
+    .select('*, objetivo_dia(dia_semana)')
+    .order('fecha_creacion', { ascending: false });
+  if (opciones?.soloActivos) query = query.eq('activo', true);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data.map((fila) => {
+    const { objetivo_dia, ...objetivo } = fila;
+    return {
+      ...objetivo,
+      dias: objetivo_dia.map((d) => d.dia_semana).sort((a, b) => a - b),
+    };
+  });
+}
+
 /** Días ISO (1=lunes…7=domingo) de un objetivo SPECIFIC_DAYS. */
 export async function listarDiasObjetivo(id_objetivo: string): Promise<number[]> {
   const { data, error } = await supabase

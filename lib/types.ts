@@ -701,7 +701,69 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      detalle_dia: {
+        Args: { p_fecha: string }
+        Returns: {
+          completado: boolean
+          credito: number
+          id_objetivo: string
+          meta_valor: number
+          nombre: string
+          omitido: boolean
+          tipo: Database["public"]["Enums"]["tipo_objetivo"]
+          unidad: string
+          valor: number
+        }[]
+      }
+      esperados_hoy: {
+        Args: { p_tz?: string }
+        Returns: {
+          completado: boolean
+          descripcion: string
+          frecuencia_tipo: Database["public"]["Enums"]["frecuencia_tipo"]
+          hora_recordatorio: string
+          id_categoria: string
+          id_objetivo: string
+          meta_valor: number
+          nombre: string
+          omitido: boolean
+          tipo: Database["public"]["Enums"]["tipo_objetivo"]
+          unidad: string
+          valor: number
+        }[]
+      }
+      progreso_por_dia: {
+        Args: { p_desde: string; p_hasta: string; p_tz?: string }
+        Returns: {
+          credito: number
+          esperados: number
+          fecha: string
+          pct: number
+        }[]
+      }
+      progreso_por_objetivo: {
+        Args: { p_desde: string; p_hasta: string; p_tz?: string }
+        Returns: {
+          credito: number
+          esperados: number
+          id_categoria: string
+          id_objetivo: string
+          nombre: string
+          pct: number
+          tipo: Database["public"]["Enums"]["tipo_objetivo"]
+        }[]
+      }
+      semanales_hoy: {
+        Args: { p_tz?: string }
+        Returns: {
+          completado_hoy: boolean
+          hechos: number
+          id_categoria: string
+          id_objetivo: string
+          meta: number
+          nombre: string
+        }[]
+      }
     }
     Enums: {
       frecuencia_tipo: "DAILY" | "SPECIFIC_DAYS" | "WEEKLY_COUNT"

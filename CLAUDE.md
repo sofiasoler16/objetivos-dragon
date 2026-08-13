@@ -89,7 +89,108 @@ Ver `esquema.sql` para el detalle (enums, RLS, trigger de alta). Puntos clave:
 - Antes de agregar cualquier feature, pasala por: *¿ayuda a planificar, cumplir o entender los
   objetivos?* Si no, no va.
 
-**Fase actual: Fase 2 — Autenticación (a probar en dispositivo).**
+**Fase actual: Post-MVP V3 — sistema de dragones.** Plan de la usuaria (en orden, preguntando
+y probando antes de cada paso): 1) pantalla "Mi Dragón" + botón arriba-izq, 2) XP+monedas visibles
+arriba en todas las pantallas, 3) comprar+equipar, 4) sistema de temas (equipar cambia colores).
+**Paso 1 hecho:** 2º dragón **Fuego** (`assets/dragons/fuego/` registrado en `constants/dragons.ts`;
+imágenes redimensionadas, originales en `art-source/uploads/fuego-originales/`). Seed en
+`seed-dragon-fuego.sql` (tema Fuego cálido + dragón credit_cost 100 + regla FREE) — **la usuaria lo
+corre en Supabase**. Capa `lib/data/dragones.ts` (`cargarColeccion`, `assetKeyEquipado`), lógica pura
+`logic/dragones.ts` (`estadoColeccion`/`requisitoCumplido`/`textoRequisito`). Pantalla modal
+`app/mi-dragon.tsx` (grupos: Mi colección/Disponibles/Bloqueados/Premium; header nivel·XP·monedas).
+`components/DragonButton.tsx` (cara del dragón equipado → abre Mi Dragón) arriba-izq en las 3 tabs.
+Comprar/Equipar por ahora avisan "Paso 3". Los tokens del tema Fuego recién aplican en el Paso 4.
+**Paso 2 hecho (XP+monedas):** RPC `otorgar_recompensa(p_motivo, p_clave)` en `funciones-recompensas.sql`
+(SECURITY DEFINER, idempotente por `clave_idempotencia`, montos server-side: objetivo +10 XP/+5 🪙,
+tarea +15 XP/+8 🪙; recalcula caché perfil, nivel = XP/100 + 1) — **la usuaria lo corre en Supabase**.
+`lib/data/recompensas.ts` (`otorgarRecompensa`/`recompensaSegura` best-effort con cast rpc hasta
+regenerar tipos). Cableado en `marcarObjetivoCompletado`/`registrarValorNumerico`/`completarTarea`
+(clave `obj:{id}:{fecha}` / `tarea:{id}`; no rompe si el RPC falla). `obtenerPerfilStats` +
+`components/StatsPills.tsx` (⚡XP 🪙monedas, query `['perfil-stats']`) arriba-izq junto al DragonButton
+en las 3 tabs; se invalidan `['perfil-stats']`+`['coleccion']` al completar.
+Barra superior muestra: **Nivel** (número + "Nivel") · **⚡ XP dentro del nivel** (0–99, se reinicia al
+subir) · **🪙 monedas**. Helpers puros en `logic/dragones.ts` (`nivelDesdeXp`, `xpEnNivel`,
+`progresoNivel`, `XP_POR_NIVEL=100`). `xp_total` en DB sigue acumulativo (🔒); el "reinicio" es solo
+de display (`xp % 100`). Mi Dragón muestra barra de progreso al próximo nivel.
+**Paso 3 hecho (comprar+equipar):** RPC `comprar_dragon(p_id_dragon)` en `funciones-compra.sql`
+(SECURITY DEFINER: valida ya-lo-tiene/premium/requisito FREE·NIVEL·XP/monedas, resta créditos
+idempotente `compra:{id}`, crea `usuario_dragon`, recalcula caché). `comprarDragon` (cast rpc) +
+`equiparDragon` (upsert `preferencia_usuario`, dragón+tema; RLS lo permite). Mi Dragón: botones
+Comprar (confirm + "faltan X 🪙" si no alcanza + celebración → ofrecer equipar) y Equipar reales.
+**El dragón equipado aparece en todas las pantallas**: hook `hooks/useDragonEquipado.ts` (query
+`['dragon-equipado']`) usado en el hero de Hoy (`DragonHero assetKey`), Objetivos y Progreso
+(`DragonMascot assetKey`) + el DragonButton. Al comprar/equipar se invalidan
+`['coleccion','perfil-stats','dragon-equipado']`. Los COLORES siguen igual (Paso 4). 
+**Paso 4 hecho (sistema de temas):** `constants/theme.ts` ahora exporta `type Tema` + `TEMA_ORIGINAL`
+(y `colors` como alias de respaldo). `logic/tema.ts` (`temaAColores`: mapea los 9 colores del `tema`
+de la DB a la paleta completa, derivando variantes con tint/shade/alpha; rojo de error fijo).
+`components/theme-provider.tsx` (`ThemeProvider`+`useTheme`, query `['tema-activo', userId]` que lee
+`preferencia_usuario → tema`; fallback TEMA_ORIGINAL). Montado en `_layout` bajo SessionProvider.
+`lib/data/dragones.ts` → `temaActivo()`. **Los 21 archivos** convertidos al patrón
+`const colors = useTheme(); const styles = makeStyles(colors)` (styles como factory `(colors: Tema) =>
+StyleSheet.create`). Al equipar se invalida `['tema-activo']` → toda la app se repinta. ⚠️ Correr
+`actualizar-tema-original.sql` (alinea el tema Original de la DB al fondo verde actual). 
+
+**Sistema de dragones (V3) COMPLETO:** Mi Dragón + XP/monedas + comprar/equipar + temas.
+
+**Ajustes post-V3 (lote de mejoras):**
+- 3er dragón **Nocturno** 🌙 (`assets/dragons/nocturno/`, `seed-dragon-nocturno.sql`, credit 250).
+  Tema **OSCURO**: `logic/tema.ts` ahora detecta fondo oscuro (luminancia) y deriva chips oscuros +
+  textos claros. (Es tema del dragón, NO sigue el modo oscuro del celular.)
+- Fix: objetivo diario creado de noche no aparecía en Hoy → `fecha_inicio` ahora usa `hoyISO()` (local).
+- Fix: encabezados de Mi Dragón y Perfil tapados por la cámara → `SafeAreaView edges top`.
+- Recompensa por **prioridad** de tarea (BAJA 10/5 · MEDIA 15/8 · ALTA 25/13) y **devolución al
+  desmarcar** (XP/monedas): `funciones-recompensas-v2.sql` (`otorgar_recompensa` con motivos por
+  prioridad + `revocar_recompensa`); `lib/data/recompensas.ts` (`motivoPorPrioridad`, `revocacionSegura`);
+  wired en `marcarObjetivoCompletado`/`registrarValorNumerico`/`completarTarea` (revoca al desmarcar).
+- Hoy: **Tareas de hoy** arriba (no desaparecen al marcarlas, se ven hechas todo el día; incluye
+  vencidas); **Próximas** (mañana→7 días) abajo. Numéricos: botones **−chico/−grande** + **botones
+  personalizados guardados** por objetivo (AsyncStorage `pasos_custom_v1`, long-press para borrar);
+  "Ingresar" ahora crea un botón nuevo (no setea el total). Los +250/+500 salen de `pasosNumericos(meta)`.
+
+**Logros (Pasos A–C hechos):** tablas ya existían (`logro`/`usuario_logro`). SQL en
+`funciones-logros.sql` (la usuaria lo corre): RPC `evaluar_logros()` (SECURITY DEFINER) que mira el
+historial con el MISMO crédito que Progreso, desbloquea logros nuevos, otorga XP/monedas idempotente
+(`logro:{id}`) y devuelve los recién ganados para celebrar; seed de 3 logros (En racha=RACHA 3, +20/10 ·
+Imparable=RACHA 7, +40/25 · Semana perfecta=SEMANA_PERFECTA ≥80% con mín. 5 días activos en 7, +50/30);
+`comprar_dragon` actualizado: reglas de historial se habilitan si tenés un logro de ese `rule_type`.
+Cliente: `lib/data/logros.ts` (`evaluarLogros`/`evaluarLogrosSeguro`/`listarLogros`), `logic/dragones.ts`
+(`requisitoCumplido`/`estadoColeccion` toman `logrosDesbloqueados:Set<string>`; `textoRequisito` para
+SEMANA_PERFECTA/RACHA), `cargarColeccion` ahora devuelve `logrosDesbloqueados`, hook
+`hooks/useRevisarLogros.ts` (llama a `evaluarLogrosSeguro`, invalida perfil/colección/logros y celebra
+con Alert 🏆). Cableado en Hoy (`marcar`/`registrar`/`completar`) y Objetivos (`completar`). Sección
+**Logros 🏆** en Mi Dragón (`listarLogros`, query `['logros']`). ⚠️ Correr `funciones-logros.sql`.
+**Paso D hecho — dragón de HIELO ❄️:** arte de la usuaria en `assets/dragons/hielo/` (6 PNG
+redimensionadas a máx 700px, originales en `art-source/uploads/hielo-originales/`), registrado en
+`constants/dragons.ts` (`dragon_hielo`). `seed-dragon-hielo.sql` (la usuaria lo corre): tema **Hielo**
+claro helado (celeste `#eef7fb`) + dragón `credit_cost 0`, `orden 4` + regla `SEMANA_PERFECTA`. **Los
+dragones de logro NO se compran: `evaluar_logros` los REGALA** (inserta `usuario_dragon` precio 0) al
+desbloquear un logro de ese mismo `rule_type` (decisión de la usuaria). Se muestra "Bloqueado" hasta
+cumplir el logro; ahí pasa directo a "Mi colección" (Equipar). `test-desbloquear-hielo.sql` simula el
+desbloqueo para probarlo sin esperar la semana real. **Sistema de logros + hielo COMPLETO.**
+
+**Bugs arreglados (post-logros):** (a) botones "Editar" de Objetivos usaban `backgroundColor:'#fff'` y
+checkbox `borderColor:'#d8d3ea'` fijos → ahora `colors.surface`/`colors.track` (responden al tema).
+(b) tema Original volvía a crema: el seed base en `esquema-dragones.sql` creaba Original con fondo
+`#faf6ef` → corregido a `#f1f8f3`; para bases ya creadas correr `actualizar-tema-original.sql`.
+
+**Fase 17 HECHA — builds con EAS (nube):** cuenta Expo `sofi16044s-team`, proyecto `objetivos-dragon`
+(projectId en `app.json`). `eas.json` con perfiles `development` (dev-client, APK) / `preview`
+(standalone, APK) / `production` (AAB); las credenciales EXPO_PUBLIC de Supabase están en `env` de cada
+perfil (la `anon key` es pública, seguro). Keystore lo maneja EAS. **⚠️ 3 crashes resueltos:** la
+plantilla SDK 54 traía `@expo/ui`, `expo-symbols` y `expo-glass-effect` (todos SIN usar) que rompían
+el arranque en Android (`NoClassDefFoundError: ComposeViewFunctionDefinitionBuilder`, `ExpoUIModule`) →
+**removidos** (`npm uninstall`). **⚠️ EAS compila desde el commit de git**: como estos cambios están SIN
+COMMITEAR, hay que buildear con **`EAS_NO_VCS=1`** para que suba el working dir (si no, revive el crash).
+La usuaria eligió el **preview standalone** (anda solo, sin Metro/QR/cable — evita los líos de red del
+dev-client). **Actualizar la app = `EAS_NO_VCS=1 eas build --profile preview --platform android`** +
+reinstalar el APK. Free tier EAS = ~15 Android builds/mes. Ver [[build-eas-workflow]]. Build local con
+Android Studio queda para desarrollo intenso (necesita JDK 17 —hay 21— + `ANDROID_HOME`). Publicar a
+Play sigue diferido ([[build-apk-diferido]]).
+
+Próximo (orden de la usuaria): ~~APK~~ (hecho) → Health Connect → IA+Calendario.
+
+Fase 11 quedó completa salvo el **build** (diferido, ver memoria [[build-apk-diferido]]).
 Hecho Fase 1: `esquema.sql` + `esquema-dragones.sql` aplicados; tipos en `lib/types.ts`;
 capa de datos en `/lib/data` (`categorias`, `objetivos`+`objetivo_dia`, `registros`, `tareas`).
 Hecho Fase 2: auth 100% Supabase (`lib/data/auth.ts`); `SessionProvider` + `useSession`
@@ -109,11 +210,88 @@ sus fases (Objetivos F4, Hoy F6, Progreso F8). `app/perfil.tsx` (modal) ya tiene
 Cuando llegue el sistema de temas (V3), `constants/theme.ts` pasa a ser el tema "Original"
 accedido vía `useTheme()`, y `DragonMascot` recibe el `asset_key` del dragón equipado.
 
-**Fase 3 hecha:** CRUD de categorías en `app/categorias.tsx` (React Query: listar/crear/
-actualizar/eliminar con `lib/data/categorias.ts`; formulario en modal con nombre + emoji +
-color). Acceso desde **Perfil → Categorías**. Falta cablearlas como selector en los
-formularios de objetivos/tareas (Fases 4/5).
-Próxima: **Fase 4 — Objetivos (crear/editar/eliminar).**
+**Fase 3 hecha:** CRUD de categorías en `app/categorias.tsx` (Perfil → Categorías).
+
+**Fase 4 hecha:** pestaña Objetivos (`app/(tabs)/objetivos.tsx`) con lista real (React Query,
+`listarObjetivosConDias`) + botón Nuevo/Editar. Formulario `app/objetivo/[id].tsx`
+(id='nuevo' = crear): nombre, descripción, categoría (selector real), tipo BOOLEAN/NUMERIC
+(+meta+unidad), frecuencia DAILY/SPECIFIC_DAYS(días→`objetivo_dia`)/WEEKLY_COUNT
+(`frecuencia_cantidad`), hora_recordatorio, + eliminar. Resumen de frecuencia puro en
+`logic/objetivos.ts`. Fechas (inicio/fin) usan el default de la DB (no expuestas aún).
+
+**Fase 5 hecha:** sección Tareas real en la pestaña Objetivos (completar con checkbox,
+editar, nueva). Formulario `app/tarea/[id].tsx` (título, descripción, categoría, prioridad
+BAJA/MEDIA/ALTA, fecha_limite/hora_limite opcionales por texto, + eliminar). Resumen puro en
+`logic/tareas.ts`. `completarTarea` setea `fecha_completada`.
+**Fase 6 hecha (🔒):** RPCs `esperados_hoy` + `semanales_hoy` en `funciones-hoy.sql` (isodow
++ zona horaria). Capa `lib/data/hoy.ts`. Lógica pura `logic/hoy.ts` (`porcentajeDia`,
+`creditoObjetivo`, `mensajeDragon`) y `logic/fecha.ts` (`hoyISO`, `horaActual`, `sumarDiasISO`,
+TZ Buenos Aires). Pantalla Hoy real: hero con % del día + mensaje del dragón por reglas;
+**Hoy** (booleanos, marcar → upsert `registro_objetivo` → recalcula %); **Recordá**
+(numéricos con barra, aún sin sumar valor); **Esta semana** (WEEKLY_COUNT, toggle, no penaliza
+el %); **Tareas próximas** (vencen hoy/mañana, completar).
+**Fase 7 hecha:** interacción numérica en **Recordá**. `logic/hoy.ts` → `pasosNumericos(meta)`
+(dos incrementos "lindos" 1/2/2,5/5×10ⁿ derivados de la meta; agua 2000 → +250/+500).
+`lib/data/registros.ts` → `registrarValorNumerico(id, fecha, valor, meta)` (upsert `valor`,
+marca `completado` si llegó a la meta; valor real se guarda aunque pase la meta). Pantalla Hoy:
+botones +chico/+grande suman, "Ingresar" abre modal (setea total exacto, teclado numérico) con
+opción **Omitir hoy** (`omitirObjetivo` → fila con `omitido`, queda fuera del % y se muestra
+con "Deshacer"). El % del día se recalcula proporcional al invalidar `esperados-hoy`.
+
+**Fase 8 hecha (🔒):** Progreso 100% desde `registro_objetivo`. RPCs en
+`funciones-progreso.sql`: `progreso_por_dia(desde,hasta)` (crédito/esperados/pct por día),
+`progreso_por_objetivo(desde,hasta)` (por objetivo, para agrupar por categoría) y
+`detalle_dia(fecha)`. Todos usan el mismo crédito que Hoy (NUMERIC proporcional, BOOLEAN 0/1,
+omitido fuera). Capa `lib/data/progreso.ts` (wrapper `rpc<T>` mientras no se regeneren tipos).
+Lógica pura `logic/progreso.ts` (`resumenRango`=consistencia sum(credito)/sum(esperados),
+`delta`, `semanaLD`, `agruparPorCategoria`, `nivelIntensidad`, `mensajeProgreso`) + helpers de
+fecha (`inicioSemanaISO`, `diaSemanaISO`, `primer/ultimoDiaMesISO`, `sumarMesesISO`, `nombreMes`).
+Pantalla Progreso real: resumen semanal (consistencia + delta vs semana anterior), barras L→D,
+por categoría con desglose expandible por objetivo, calendario mensual con intensidad + navegación
++ modal de detalle del día. **Métrica principal = consistencia** (racha, secundaria/pendiente).
+⚠️ Correr `funciones-progreso.sql` en Supabase antes de probar; después conviene regenerar tipos.
+
+**Fase 9 hecha:** dragón con expresiones por estado. Arte por expresión en
+`assets/dragons/original/` (`dragon.png`=busto neutral + `manana/animo/orgullo/festejo/enojado.png`
+= cuerpo entero, PNG transparentes que subió la usuaria). Registro `constants/dragons.ts`
+reestructurado a sets por expresión (`DRAGON_ART[asset_key][expresion]`, `dragonSource(key, expr)`).
+Lógica pura `logic/dragon.ts`: `estadoDragon(percent, hora)` (festejo≥100, orgullo≥70, **enojado**
+si ≥19h y <50%, manana si <12h y <30%, animo el resto) + `mensajeDragon(estado)`. `mensajeDragon`
+viejo salió de `logic/hoy.ts`. `DragonMascot` acepta `expresion`. **Solo el hero de Hoy** usa la
+expresión según el % del día, vía `components/DragonHero.tsx` (apila las 5 imágenes y muestra la
+activa por opacidad → cambio instantáneo, sin recarga/parpadeo; `fadeDuration=0`). El hero lleva
+`marginTop` para que el borde del ScrollView no recorte la cabeza (cuerpo entero, `top -46`), y la
+barra de progreso `paddingRight` para no quedar tapada. Las 5 PNG se **redimensionaron a máx 700px**
+(originales en `art-source/uploads/expresiones-originales/`) porque a 1024×1536 tardaban en decodificar.
+**Objetivos y Progreso siguen con el busto neutral** (`DragonMascot`) en el mismo lugar. Tokens de color ya centralizados en `constants/theme.ts` (identidad
+violeta+pastel). Falta (V3): temas por dragón equipado.
+
+**Fase 10 hecha:** recordatorios locales con `expo-notifications` (~0.32, SDK 54). Lógica pura
+`logic/recordatorios.ts` (`construirRecordatorios`: DAILY→diario, SPECIFIC_DAYS→semanal por día ISO,
+tareas con fecha_limite→fecha puntual; WEEKLY_COUNT sin recordatorio). Puente `lib/notificaciones.ts`
+(handler + canal Android, permisos, `sincronizarRecordatorios`=cancelar todo y reprogramar,
+convierte isoDow→weekday expo 1=dom, saltea fechas pasadas, `notificacionDePrueba` en 5s).
+Componente invisible `components/RecordatoriosSync.tsx` montado en el layout de tabs: reusa las
+queryKeys ['objetivos']/['tareas'] → al invalidarse (crear/editar/completar), reprograma solo.
+Perfil → "Probar recordatorio" dispara la prueba. Plugin `expo-notifications` en app.json (para dev
+build). ⚠️ En Expo Go (SDK 53+) el soporte es limitado; garantizado con development build.
+
+**Fase 11 (en curso — pulido, SIN build):** el build/APK queda **diferido** hasta que la usuaria
+diga que la app está lista (ver memoria `build-apk-diferido`). Hecho del pulido:
+- **Selectores nativos de fecha/hora** (`components/ui/DateTimeField.tsx`, rueda/spinner, abre en
+  hoy/ahora) reemplazan el texto a mano en ambos formularios; helpers en `logic/fecha.ts`
+  (`isoADate`/`dateAISO`/`horaADate`/`dateAHora`/`fechaLarga`). `KeyboardAvoidingView` en los forms.
+- **Fechas inicio/fin** de objetivos editables en `app/objetivo/[id].tsx` (antes usaban el default).
+- **Recordatorio WEEKLY_COUNT**: lun/mié/vie a su hora (`logic/recordatorios.ts`, no tiene día fijo).
+- **Racha** en Progreso (`rachaActual` en `logic/progreso.ts`, días consecutivos 100%, secundaria).
+- **Tareas en Progreso**: sección con completadas esta semana + pendientes (aparte de objetivos 🔒).
+- **Estados vacíos/loading/error**: componente `components/ui/EstadoMensaje.tsx` (vacío con dragón /
+  error con "Reintentar"); cableado en las 3 pestañas (esperados-hoy, objetivos, tareas, progreso-dias)
+  con `isError`+`refetch`. Los "no hay nada" ahora invitan a la acción; los errores no dejan pantalla en blanco.
+- **Onboarding**: `components/Onboarding.tsx` (Modal de 5 pasos con el dragón cambiando de expresión,
+  bandera `onboarding_visto_v1` en AsyncStorage → una sola vez). Montado en el layout de tabs. Perfil →
+  "Ver tutorial de nuevo" lo reactiva (`reiniciarOnboarding`).
+Único pendiente de la Fase 11: el **build/APK**, diferido hasta que la usuaria diga que la app está lista.
 
 # ANEXO — Dragones, temas, XP y créditos (recompensas)
 
@@ -191,3 +369,165 @@ desbloqueos y tutorial — nunca hardcodear el dragón Original.
 - 1 dragón comprable por créditos (para probar el flujo de compra).
 - Pantalla **Mi Dragón** básica.
 Después, agregar un dragón nuevo = asset + tema + `credit_cost` + regla, **sin tocar componentes**.
+
+# ANEXO al CLAUDE.md — Nativo, Integraciones e IA (decisiones)
+
+> Pegá esta sección en tu `CLAUDE.md`. Explica el *porqué* de cada decisión para no desviarse.
+> El detalle largo con opciones está en `decisiones-arquitectura-v2.md`.
+
+## Build nativo
+
+- **Decisión:** app nativa con Expo. Se distribuye por Play Store (AAB) y, más adelante, App Store.
+- **El development build es la llave** de cualquier módulo nativo (Health Connect, expo-calendar) y
+  **mantiene Fast Refresh**. Seguir en Expo Go hasta que se necesite un módulo nativo.
+- **No** compilar producción hasta ir a publicar. Preview (APK) = probar suelto; Production (AAB) = Play.
+
+## Health Connect (solo Android)
+
+- **Decisión:** leer datos de salud desde Health Connect, empezando por **pasos, solo lectura**.
+- **Es una caja compartida en el dispositivo:** solo contiene lo que otras apps escriben (Samsung
+  Health, Hevy, etc.). Tu app **lee** lo que haya; no "genera" datos de salud.
+- Cada objetivo lleva `fuente_datos` (`MANUAL` / `HEALTH_CONNECT`). Si ninguna app escribe un tipo
+  (p. ej. comidas), ese objetivo queda `MANUAL`.
+- En Supabase guardar **solo el valor decidido** (ej. "6821/8000 pasos"), nunca el flujo crudo de salud.
+- Al publicar: **declaración de apps de salud** en Play Console + **política de privacidad** obligatorias.
+- iOS es otra integración (HealthKit), a futuro.
+
+## Calendario
+
+- **Decisión (MVP): `expo-calendar` (calendario del dispositivo), NO la API de Google Calendar.**
+- **Porqué:** los scopes de Google Calendar son *sensibles* → obligan a verificación de OAuth de
+  Google (consent screen, política, video, ~10 días) antes de publicar. `expo-calendar` no requiere
+  nada de eso, y como el SO ya sincroniza los eventos de Google al calendario del teléfono, la app
+  los ve igual.
+- Límites: funciona **solo en el dispositivo** (no desde el servidor) y necesita permiso de calendario.
+- Ir a la API de Google Calendar **solo** si algún día hace falta acceso desde el servidor o sin
+  depender de la sincronización del dispositivo (y ahí se presupuesta la verificación).
+
+## IA (chat que organiza)
+
+- 🔒 **La IA PROPONE, el código EJECUTA.** La IA **nunca** escribe en la base. Flujo: la app junta
+  contexto (objetivos/tareas de la semana + eventos + categorías) → Edge Function llama al modelo →
+  devuelve una **propuesta en JSON** → la app la muestra → la usuaria confirma/edita → la app escribe
+  vía `/lib/data`.
+- 🔒 **La API key vive en la Edge Function de Supabase (secret), nunca en la app.**
+- **Modelo:** Claude **Haiku 4.5** (barato y suficiente para esto).
+- **Guardrails:** validar el JSON contra el schema antes de escribir; el modelo mapea lenguaje
+  natural a los tipos reales (p. ej. "pilates 3×/semana" → `WEEKLY_COUNT`, `frecuencia_cantidad=3`,
+  o `tarea` si es puntual); pasarle **las categorías existentes** para que **elija** (que no invente
+  ids ni categorías); **contexto acotado** a la semana relevante; detrás de **Premium**; disparar con
+  un **botón explícito** ("Organizá mi semana"), no en cada acción; usar prompt caching del system prompt.
+
+## Costos / hosting
+
+- **Edge Function:** gratis hasta 500.000 invocaciones/mes (una organización = 1 invocación).
+- **Costo real de la IA:** la API de Claude, **por token, pago por uso** (aparte de Supabase); centavos.
+- **Supabase Pro (US$25/mes):** solo al superar el free tier general. Recordar: los proyectos free se
+  pausan tras 7 días sin actividad.
+
+## Publicación
+
+- **Gate de TIEMPO, no de código:** una cuenta de desarrollador personal nueva necesita un closed
+  test con **12 testers durante 14 días continuos** antes de producción en Play (las cuentas de
+  organización con DUNS están exentas pero tardan 2-4 semanas en verificarse). Arrancar el test
+  temprano, apenas haya un build instalable.
+
+  # Plan de trabajo — Nativo, Integraciones e IA (Bloque V2)
+
+Se apoya en la app que ya funciona (Expo + Supabase). Va **después del MVP** y es
+**independiente** del bloque de dragones: podés intercalarlos.
+
+> Cómo usarlo con Claude Code: una fase por sesión, `CLAUDE.md` siempre actualizado,
+> commit + `/clear` al terminar cada fase.
+
+## La llave y las ramas
+
+```
+Fase 17 — DEVELOPMENT BUILD  (la llave de todo lo nativo)
+        │
+        ├── Track A ─ Health Connect ── Fase 18 (pasos) ── Fase 19 (agua/ejercicio, opcional)
+        │
+        ├── Track B ─ IA + Calendario ── Fase 20 (expo-calendar) ── Fase 21 (Edge Function + IA)
+        │
+        └── Track C ─ Publicación (en PARALELO, es gate de TIEMPO) ── Fase 22
+```
+
+Los tracks A y B no dependen entre sí: hacé el que quieras primero. El track C conviene
+arrancarlo apenas tengas un build instalable, porque los 14 días de testing corren solos.
+
+---
+
+## Fase 17 — Development build (prerequisito de todo lo nativo)
+
+- **Qué construir:** instalar `expo-dev-client`; configurar EAS (`eas.json` con perfil
+  `development`); crear cuenta gratis de Expo; correr `eas build --profile development
+  --platform android` (o build local con Android Studio); instalar el build en tu teléfono;
+  arrancar con `npx expo start --dev-client`.
+- **Listo cuando:** la app corre en tu cel desde el dev build **con recarga en vivo** (ya no
+  desde Expo Go), lista para sumar módulos nativos.
+- **Prompt:** *"Configurá un development build de Expo: instalá expo-dev-client, creá el `eas.json`
+  con un perfil development para Android, y dejame los comandos para compilar (EAS y local) e
+  instalarlo en mi teléfono. No toques features todavía."*
+
+## Fase 18 — Health Connect: pasos (Track A)
+
+- **Qué construir:** instalar `react-native-health-connect` + su config plugin; declarar permisos
+  de lectura (empezar por `Steps`); pedir permisos en runtime; leer los pasos **agregados** de hoy;
+  mapearlos al objetivo de pasos con `fuente_datos = HEALTH_CONNECT` y hacer upsert en
+  `registro_objetivo`. Guardar en Supabase **solo el valor decidido** (ej. 6821/8000), no el flujo crudo.
+- **Listo cuando:** los pasos de hoy aparecen solos en el objetivo de pasos, sin cargarlos a mano.
+- **Prompt:** *"Integrá react-native-health-connect (solo Android). Pedí permiso de lectura de
+  Steps, leé los pasos agregados de hoy en la zona horaria del usuario, y actualizá el
+  registro_objetivo del objetivo de pasos (fuente_datos=HEALTH_CONNECT) por upsert. Manejá el caso
+  de permiso denegado."*
+
+## Fase 19 — Health Connect: agua / ejercicio / sueño (opcional, Track A)
+
+- **Qué construir:** sumar tipos de lectura (Hydration, ExerciseSession, SleepSession) según lo que
+  tus apps escriban a Health Connect; para el agua, opción de que **tu app escriba** a Health Connect
+  para compartirla. Recordá: si una app de origen no soporta ese tipo (ej. comidas), ese objetivo
+  queda en `MANUAL`.
+- **Listo cuando:** los tipos disponibles se reflejan automáticamente; los que no, siguen manuales.
+
+## Fase 20 — Calendario del dispositivo (Track B)
+
+- **Qué construir:** instalar `expo-calendar`; pedir permiso de calendario; leer los eventos de la
+  **semana actual** del calendario del teléfono (que ya incluye los de Google sincronizados por el
+  SO); exponerlos en la app para mostrarlos y, después, alimentar a la IA. **No** usar la API de
+  Google Calendar.
+- **Listo cuando:** ves tus eventos reales de la semana dentro de la app.
+- **Prompt:** *"Con expo-calendar, pedí permiso de calendario y leé los eventos de la semana actual
+  del calendario del dispositivo. Exponelos en una función de la capa de datos para usarlos en la UI
+  y más adelante en la IA. No uses la API de Google Calendar."*
+
+## Fase 21 — Edge Function + IA ("Organizá mi semana") (Track B)
+
+- **Qué construir:** crear la Edge Function `organizar-semana` en Supabase; guardar la
+  `ANTHROPIC_API_KEY` como **secret** de Supabase (nunca en la app). La función recibe el contexto
+  (objetivos/tareas de la semana + eventos del calendario + las categorías del usuario) y llama a
+  **Claude Haiku 4.5** pidiendo una **propuesta en JSON** con los campos de tu schema. La app
+  **muestra** la propuesta → la usuaria **confirma/edita** → la app **escribe** vía `/lib/data`.
+- **Listo cuando:** escribís "pilates 3 veces por semana", la IA propone un objetivo `WEEKLY_COUNT`
+  con `frecuencia_cantidad = 3`, lo confirmás, y aparece en tus objetivos.
+- **Prompt:** *"Creá una Edge Function `organizar-semana` que reciba {objetivos, tareas, eventos,
+  categorias}, llame a Claude Haiku 4.5 (key desde un secret de Supabase) y devuelva SOLO un JSON con
+  objetivos/tareas propuestos usando mi schema y eligiendo de las categorías existentes. En la app:
+  mostrar la propuesta, permitir editar/confirmar, y recién ahí escribir vía la capa de datos.
+  Validar el JSON contra el schema antes de escribir."*
+
+## Fase 22 — Publicación (Track C, arrancar temprano)
+
+- **Qué construir:** redactar y publicar la **política de privacidad** (una URL); completar en Play
+  Console la **declaración de apps de salud** y el formulario de **seguridad de datos**; generar un
+  build **preview (APK)** para probar y luego el **AAB** de producción; configurar **internal
+  testing**; abrir un **closed test con 12 testers durante 14 días continuos**; aplicar a producción.
+  iOS queda para después (cuenta Apple + HealthKit).
+- **Listo cuando:** el closed test está corriendo (o ya aplicaste a producción en Play).
+
+---
+
+## Qué cambia en el stack / schema
+
+- **Nuevo:** Edge Functions (Deno) para la IA. `fuente_datos` ya está en el schema.
+- Los eventos del calendario se leen **en vivo** (no hace falta tabla de caché en el MVP).
+- La propuesta de la IA se guarda **solo tras confirmar**, como objetivos/tareas normales.

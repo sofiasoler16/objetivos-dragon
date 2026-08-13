@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import type { Tables, TablesInsert } from '../types';
+import { recompensaSegura, revocacionSegura } from './recompensas';
 
 export type RegistroObjetivo = Tables<'registro_objetivo'>;
 /** Payload de upsert: exige `id_objetivo` y `fecha`; el resto es opcional. */
@@ -43,13 +44,16 @@ export async function upsertRegistro(registro: UpsertRegistro): Promise<Registro
   return data;
 }
 
-/** Marca (o desmarca) un objetivo BOOLEAN como completado en una fecha. */
-export function marcarObjetivoCompletado(
+/** Marca (o desmarca) un objetivo BOOLEAN como completado en una fecha. Otorga recompensa al completar. */
+export async function marcarObjetivoCompletado(
   id_objetivo: string,
   fecha: string,
   completado = true,
 ): Promise<RegistroObjetivo> {
-  return upsertRegistro({ id_objetivo, fecha, completado });
+  const registro = await upsertRegistro({ id_objetivo, fecha, completado });
+  if (completado) await recompensaSegura('objetivo', `obj:${id_objetivo}:${fecha}`);
+  else await revocacionSegura(`obj:${id_objetivo}:${fecha}`); // desmarcó → devolver
+  return registro;
 }
 
 /** Guarda el valor de un objetivo NUMERIC (ej: 1500 de agua) en una fecha. */
@@ -59,6 +63,25 @@ export function registrarValor(
   valor: number,
 ): Promise<RegistroObjetivo> {
   return upsertRegistro({ id_objetivo, fecha, valor });
+}
+
+/**
+ * Registra el valor de un numérico y marca `completado` si alcanzó la meta.
+ * El valor real se guarda tal cual (puede pasar la meta) — el crédito del % ya
+ * queda topeado en 1 en `logic/hoy.ts`. `valor` se piso en 0 (no negativo).
+ */
+export async function registrarValorNumerico(
+  id_objetivo: string,
+  fecha: string,
+  valor: number,
+  meta: number | null,
+): Promise<RegistroObjetivo> {
+  const v = Math.max(0, valor);
+  const completado = meta != null && meta > 0 && v >= meta;
+  const registro = await upsertRegistro({ id_objetivo, fecha, valor: v, completado });
+  if (completado) await recompensaSegura('objetivo', `obj:${id_objetivo}:${fecha}`);
+  else await revocacionSegura(`obj:${id_objetivo}:${fecha}`); // bajó de la meta → devolver
+  return registro;
 }
 
 /** Marca el objetivo como omitido ese día: queda fuera del cálculo del %. */

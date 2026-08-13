@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '@/components/ui/Card';
-import { colors, radius, spacing } from '@/constants/theme';
+import { useTheme } from '@/components/theme-provider';
+import { radius, spacing, type Tema } from '@/constants/theme';
 import {
   actualizarCategoria,
   type Categoria,
@@ -28,6 +29,8 @@ const EMOJIS = ['🏋️', '🎓', '🙂', '❤️', '📚', '💼', '🎨', '�
 const COLORS = ['#8B5CF6', '#22C55E', '#3B82F6', '#E08A2C', '#EF4444', '#EC4899', '#14B8A6', '#6366F1'];
 
 export default function CategoriasScreen() {
+  const colors = useTheme();
+  const styles = makeStyles(colors);
   const queryClient = useQueryClient();
   const { data: categorias, isLoading, error } = useQuery({
     queryKey: ['categorias'],
@@ -198,7 +201,8 @@ export default function CategoriasScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Tema) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   topRow: {
     flexDirection: 'row',

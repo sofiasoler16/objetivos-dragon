@@ -1,10 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { colors } from '@/constants/theme';
+import { Onboarding } from '@/components/Onboarding';
+import { RecordatoriosSync } from '@/components/RecordatoriosSync';
+import { useTheme } from '@/components/theme-provider';
 
 export default function TabsLayout() {
+  const colors = useTheme();
   return (
-    <Tabs
+    <>
+      <RecordatoriosSync />
+      <Onboarding />
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#fff',
@@ -43,6 +49,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-    </Tabs>
+      </Tabs>
+    </>
   );
 }

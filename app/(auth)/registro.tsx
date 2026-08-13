@@ -12,10 +12,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DragonMascot } from '@/components/DragonMascot';
-import { colors } from '@/constants/theme';
+import { useTheme } from '@/components/theme-provider';
+import { type Tema } from '@/constants/theme';
 import { registrarse } from '@/lib/data';
 
 export default function RegistroScreen() {
+  const styles = makeStyles(useTheme());
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -102,7 +104,8 @@ export default function RegistroScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Tema) =>
+  StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
   dragon: { alignSelf: 'center', marginBottom: 4 },

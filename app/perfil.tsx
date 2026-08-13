@@ -1,18 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { reiniciarOnboarding } from '@/components/Onboarding';
 import { useSession } from '@/components/session-provider';
+import { useTheme } from '@/components/theme-provider';
 import { Card } from '@/components/ui/Card';
-import { colors, spacing } from '@/constants/theme';
+import { spacing, type Tema } from '@/constants/theme';
 import { cerrarSesion } from '@/lib/data';
+import { notificacionDePrueba } from '@/lib/notificaciones';
 
 const OPTIONS = [
   { id: 'categorias', label: 'Categorías', icon: 'pricetags-outline', route: '/categorias' },
-  { id: 'notif', label: 'Notificaciones', icon: 'notifications-outline' },
-  { id: 'ayuda', label: 'Ayuda y soporte', icon: 'help-circle-outline' },
+  { id: 'notif', label: 'Probar recordatorio', icon: 'notifications-outline' },
+  { id: 'tutorial', label: 'Ver tutorial de nuevo', icon: 'help-circle-outline' },
 ] as const;
 
 export default function PerfilScreen() {
+  const colors = useTheme();
+  const styles = makeStyles(colors);
   const { session } = useSession();
   const email = session?.user.email ?? '';
   const nombre = (session?.user.user_metadata?.nombre as string) || email.split('@')[0] || 'Vos';
@@ -23,8 +29,23 @@ export default function PerfilScreen() {
     await cerrarSesion();
   }
 
+  async function onProbarNotificacion() {
+    const ok = await notificacionDePrueba();
+    Alert.alert(
+      ok ? 'Notificación de prueba enviada' : 'Permiso denegado',
+      ok
+        ? 'Debería llegarte en unos segundos 🐉'
+        : 'Activá las notificaciones en los ajustes del teléfono para recibir recordatorios.',
+    );
+  }
+
+  async function onVerTutorial() {
+    await reiniciarOnboarding();
+    Alert.alert('Tutorial reactivado', 'La próxima vez que abras la app vas a ver el tutorial.');
+  }
+
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} hitSlop={8}>
@@ -60,6 +81,8 @@ export default function PerfilScreen() {
             <Pressable
               key={o.id}
               onPress={() => {
+                if (o.id === 'notif') return void onProbarNotificacion();
+                if (o.id === 'tutorial') return void onVerTutorial();
                 if ('route' in o) router.push(o.route);
               }}
               style={[styles.listRow, i === OPTIONS.length - 1 && { borderBottomWidth: 0 }]}>
@@ -74,11 +97,12 @@ export default function PerfilScreen() {
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </Pressable>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: Tema) =>
+  StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, gap: spacing.lg, paddingBottom: 32 },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },

@@ -1,12 +1,44 @@
-// Paleta "Original" — portada del mockup aprobado (violeta/verde/azul sobre crema).
-// FUENTE ÚNICA DE COLOR: los componentes NUNCA hardcodean hex, importan de acá.
-// Cuando llegue el sistema de temas del dragón (V3, ver Anexo del CLAUDE.md),
-// este objeto pasa a ser el tema "Original" y se accede vía un useTheme() para
-// poder intercambiarlo al equipar otro dragón. Por ahora es estático.
-export const colors = {
-  bg: '#faf6ef',
+// FUENTE ÚNICA DE COLOR: los componentes NUNCA hardcodean hex.
+// Con el sistema de temas (V3), los colores se leen con `useTheme()` (components/
+// theme-provider) según el dragón equipado. `Tema` es la forma completa de la paleta;
+// `TEMA_ORIGINAL` es el tema por defecto (y el fallback mientras no hay sesión/tema).
+// `colors` queda como alias de TEMA_ORIGINAL (respaldo estático).
+export type Tema = {
+  bg: string;
+  card: string;
+  surface: string;
+  cardPurple: string;
+  cardOrange: string;
+  text: string;
+  textMuted: string;
+  divider: string;
+  purple: string;
+  purple100: string;
+  purple700: string;
+  green: string;
+  green100: string;
+  green700: string;
+  blue: string;
+  blue100: string;
+  blue700: string;
+  orange: string;
+  orangeChip: string;
+  orangeChipText: string;
+  track: string;
+  red: string;
+  redBorder: string;
+  accent: string;
+  accent100: string;
+  accent700: string;
+  accent2_100: string;
+  accent2_700: string;
+  neutral200: string;
+};
+
+export const TEMA_ORIGINAL: Tema = {
+  bg: '#f1f8f3',
   card: '#ffffff',
-  surface: '#ffffff', // alias de card (lo usan algunos componentes base)
+  surface: '#ffffff',
   cardPurple: '#ede9fb',
   cardOrange: '#fdf1de',
   text: '#241f38',
@@ -41,6 +73,9 @@ export const colors = {
   accent2_700: '#15803d', // = green700
   neutral200: '#e7e2f6', // = track
 };
+
+/** Alias de respaldo (tema por defecto). Preferí `useTheme()` para que responda al dragón. */
+export const colors = TEMA_ORIGINAL;
 
 export const fonts = {
   heading: 'System', // cambiar por una display redondeada si la marca suma fuente

@@ -1,7 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, fonts, radius } from '@/constants/theme';
+import { useTheme } from '@/components/theme-provider';
+import { fonts, radius } from '@/constants/theme';
 
 export function Tag({ label, tone = 'accent' }: { label: string; tone?: 'accent' | 'accent2' }) {
+  const colors = useTheme();
   const bg = tone === 'accent' ? colors.accent100 : colors.accent2_100;
   const fg = tone === 'accent' ? colors.accent700 : colors.accent2_700;
   return (
