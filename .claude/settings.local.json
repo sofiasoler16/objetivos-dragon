@@ -56,7 +56,12 @@
       "Bash(npx expo-doctor *)",
       "Bash(xargs -r kill)",
       "Bash(sudo -n ufw status)",
-      "Bash(eas build:view ce1e30ee-1c93-40f0-b887-fe1a01dbb60c)"
+      "Bash(eas build:view ce1e30ee-1c93-40f0-b887-fe1a01dbb60c)",
+      "Bash(grep -nEB1 -A3 \"uses-permission|<queries|package android:name|healthdata|READ_STEPS|permission.health\" node_modules/react-native-health-connect/README.md)",
+      "Bash(node -e ')",
+      "Bash(grep -nE \"EsperadoHoy|fuente_datos|Recordá|numeric|NUMERIC|persistirPasos|registrarValorNumerico|useFocusEffect|esperados-hoy|function |const .*= useMutation|=> \\\\{$\" \"app/\\(tabs\\)/index.tsx\")",
+      "Bash(grep -nA12 \"export function hoyISO\" logic/fecha.ts)",
+      "Bash(grep -nA6 \"const invalidar\" \"app/objetivo/[id].tsx\")"
     ]
   }
 }

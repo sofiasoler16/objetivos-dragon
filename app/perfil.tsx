@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { reiniciarOnboarding } from '@/components/Onboarding';
@@ -8,6 +9,12 @@ import { useTheme } from '@/components/theme-provider';
 import { Card } from '@/components/ui/Card';
 import { spacing, type Tema } from '@/constants/theme';
 import { cerrarSesion } from '@/lib/data';
+import {
+  abrirHealthConnect,
+  conectarHealthConnect,
+  type EstadoHealthConnect,
+  estadoHealthConnect,
+} from '@/lib/health';
 import { notificacionDePrueba } from '@/lib/notificaciones';
 
 const OPTIONS = [
@@ -42,6 +49,27 @@ export default function PerfilScreen() {
   async function onVerTutorial() {
     await reiniciarOnboarding();
     Alert.alert('Tutorial reactivado', 'La próxima vez que abras la app vas a ver el tutorial.');
+  }
+
+  // Health Connect: estado del permiso de pasos (para la sección Permisos).
+  const [hc, setHc] = useState<EstadoHealthConnect | null>(null);
+  const refrescarHC = useCallback(() => {
+    estadoHealthConnect()
+      .then(setHc)
+      .catch(() => setHc({ disponible: false, conectado: false }));
+  }, []);
+  useEffect(() => {
+    refrescarHC();
+  }, [refrescarHC]);
+
+  async function onConectarHC() {
+    const ok = await conectarHealthConnect();
+    refrescarHC();
+    if (!ok)
+      Alert.alert(
+        'No se pudo conectar',
+        'Permití el acceso en Health Connect (pasos y/o nutrición). Si no aparece el diálogo, revisá que Health Connect esté disponible en tu teléfono.',
+      );
   }
 
   return (
@@ -93,6 +121,39 @@ export default function PerfilScreen() {
           ))}
         </Card>
 
+        <Text style={styles.sectionTitle}>Permisos</Text>
+        <Card style={{ gap: 12 }}>
+          <View style={styles.hcRow}>
+            <Ionicons name="walk-outline" size={20} color={colors.purple} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.listLabel}>Health Connect · pasos y calorías</Text>
+              <Text style={styles.muted}>
+                {hc == null
+                  ? 'Verificando…'
+                  : !hc.disponible
+                    ? 'No disponible en este teléfono'
+                    : hc.conectado
+                      ? 'Conectado ✓'
+                      : 'No conectado'}
+              </Text>
+            </View>
+            {hc?.disponible && !hc.conectado && (
+              <Pressable style={styles.hcBtn} onPress={onConectarHC}>
+                <Text style={styles.hcBtnText}>Conectar</Text>
+              </Pressable>
+            )}
+            {hc?.conectado && (
+              <Pressable style={styles.hcBtnGhost} onPress={abrirHealthConnect}>
+                <Text style={styles.hcBtnGhostText}>Administrar</Text>
+              </Pressable>
+            )}
+          </View>
+          <Text style={styles.muted}>
+            Conectá Health Connect para traer tus pasos solos. Para que haya datos, Samsung Health (u
+            otra app de actividad) tiene que compartir tus pasos con Health Connect.
+          </Text>
+        </Card>
+
         <Pressable style={styles.logoutBtn} onPress={onLogout}>
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </Pressable>
@@ -117,6 +178,11 @@ const makeStyles = (colors: Tema) =>
   upgradeBtnText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.divider },
   listLabel: { flex: 1, fontSize: 14, color: colors.text },
+  hcRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  hcBtn: { backgroundColor: colors.purple, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
+  hcBtnText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
+  hcBtnGhost: { backgroundColor: colors.purple100, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 },
+  hcBtnGhostText: { color: colors.purple, fontWeight: '800', fontSize: 12.5 },
   logoutBtn: { borderWidth: 1, borderColor: colors.redBorder, borderRadius: 999, paddingVertical: 12, alignItems: 'center' },
   logoutText: { color: colors.red, fontWeight: '800', fontSize: 14 },
 });

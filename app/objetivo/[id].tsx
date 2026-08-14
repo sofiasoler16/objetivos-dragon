@@ -10,6 +10,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -23,6 +24,7 @@ import {
   crearObjetivo,
   eliminarObjetivo,
   listarCategorias,
+  metricaDeUnidad,
   type NuevoObjetivo,
   obtenerObjetivo,
   setDiasObjetivo,
@@ -62,6 +64,7 @@ export default function ObjetivoFormScreen() {
   const [tipo, setTipo] = useState<Tipo>('BOOLEAN');
   const [metaValor, setMetaValor] = useState('');
   const [unidad, setUnidad] = useState('');
+  const [fuenteHC, setFuenteHC] = useState(false); // pasos automáticos desde Health Connect
   const [frecuencia, setFrecuencia] = useState<Frecuencia>('DAILY');
   const [dias, setDias] = useState<number[]>([]);
   const [cantidad, setCantidad] = useState('');
@@ -78,6 +81,7 @@ export default function ObjetivoFormScreen() {
     setTipo(objetivo.tipo);
     setMetaValor(objetivo.meta_valor != null ? String(objetivo.meta_valor) : '');
     setUnidad(objetivo.unidad ?? '');
+    setFuenteHC(objetivo.fuente_datos === 'HEALTH_CONNECT');
     setFrecuencia(objetivo.frecuencia_tipo);
     setDias(objetivo.dias);
     setCantidad(objetivo.frecuencia_cantidad != null ? String(objetivo.frecuencia_cantidad) : '');
@@ -86,8 +90,18 @@ export default function ObjetivoFormScreen() {
     setFechaFin(objetivo.fecha_fin ?? '');
   }, [objetivo]);
 
+  const metrica = metricaDeUnidad(unidad);
+  const setMetrica = (m: 'STEPS' | 'CALORIES') => {
+    setUnidad(m === 'CALORIES' ? 'kcal' : 'pasos');
+    if (!metaValor) setMetaValor(m === 'CALORIES' ? '2000' : '8000');
+  };
+
   const invalidar = () => {
     queryClient.invalidateQueries({ queryKey: ['objetivos'] });
+    // Un objetivo nuevo/editado cambia lo que se espera hoy y la semana → refrescar Hoy.
+    queryClient.invalidateQueries({ queryKey: ['esperados-hoy'] });
+    queryClient.invalidateQueries({ queryKey: ['semanales-hoy'] });
+    queryClient.invalidateQueries({ queryKey: ['objetivos-hc'] }); // por si (des)marcó Health Connect
     if (!esNuevo) queryClient.invalidateQueries({ queryKey: ['objetivo', id] });
   };
 
@@ -102,6 +116,7 @@ export default function ObjetivoFormScreen() {
         frecuencia_cantidad: frecuencia === 'WEEKLY_COUNT' ? Number(cantidad) : null,
         meta_valor: tipo === 'NUMERIC' ? Number(metaValor) : null,
         unidad: tipo === 'NUMERIC' ? unidad.trim() || null : null,
+        fuente_datos: tipo === 'NUMERIC' && fuenteHC ? 'HEALTH_CONNECT' : 'MANUAL',
         hora_recordatorio: hora.trim() || null,
         fecha_inicio: fechaInicio || hoyISO(), // fecha LOCAL (no UTC), si no aparecería mañana
         fecha_fin: fechaFin || null,
@@ -221,9 +236,53 @@ export default function ObjetivoFormScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Unidad</Text>
-              <TextInput style={styles.input} placeholder="ml, pasos…" value={unidad} onChangeText={setUnidad} />
+              <TextInput
+                style={[styles.input, fuenteHC && styles.inputDisabled]}
+                placeholder="ml, pasos…"
+                value={unidad}
+                onChangeText={setUnidad}
+                editable={!fuenteHC}
+              />
             </View>
           </View>
+        )}
+
+        {tipo === 'NUMERIC' && (
+          <View style={styles.hcRow}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={styles.hcTitle}>🔗 Traer de Health Connect</Text>
+              <Text style={styles.hcHelp}>
+                Los pasos de hoy se completan solos desde Health Connect (Android). Necesitás una app
+                que registre tus pasos (Google Fit, Samsung Health…).
+              </Text>
+            </View>
+            <Switch
+              value={fuenteHC}
+              onValueChange={setFuenteHC}
+              trackColor={{ true: colors.purple, false: colors.divider }}
+            />
+          </View>
+        )}
+
+        {tipo === 'NUMERIC' && fuenteHC && (
+          <>
+            <Text style={styles.label}>¿Qué dato traés?</Text>
+            <View style={styles.segment}>
+              {(
+                [
+                  ['STEPS', '👟 Pasos'],
+                  ['CALORIES', '🍎 Calorías'],
+                ] as ['STEPS' | 'CALORIES', string][]
+              ).map(([m, l]) => (
+                <Pressable
+                  key={m}
+                  onPress={() => setMetrica(m)}
+                  style={[styles.segBtn, metrica === m && styles.segBtnSel]}>
+                  <Text style={[styles.segText, metrica === m && styles.segTextSel]}>{l}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
         )}
 
         <Text style={styles.label}>Frecuencia</Text>
@@ -364,6 +423,19 @@ const makeStyles = (colors: Tema) =>
   chipSel: { backgroundColor: colors.purple, borderColor: colors.purple },
   chipText: { fontSize: 13, color: colors.text, fontWeight: '600' },
   chipTextSel: { color: '#fff' },
+  hcRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 14,
+  },
+  hcTitle: { fontSize: 14, fontWeight: '700', color: colors.text },
+  hcHelp: { fontSize: 12, color: colors.textMuted, marginTop: 4, lineHeight: 16 },
+  inputDisabled: { opacity: 0.6 },
   segment: { flexDirection: 'row', gap: 8 },
   segBtn: {
     flex: 1,

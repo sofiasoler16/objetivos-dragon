@@ -9,4 +9,5 @@ export * from './objetivos';
 export * from './progreso';
 export * from './recompensas';
 export * from './registros';
+export * from './salud';
 export * from './tareas';

@@ -188,7 +188,42 @@ reinstalar el APK. Free tier EAS = ~15 Android builds/mes. Ver [[build-eas-workf
 Android Studio queda para desarrollo intenso (necesita JDK 17 —hay 21— + `ANDROID_HOME`). Publicar a
 Play sigue diferido ([[build-apk-diferido]]).
 
-Próximo (orden de la usuaria): ~~APK~~ (hecho) → Health Connect → IA+Calendario.
+**Fase 18 HECHA — Health Connect: pasos** (Android, solo lectura). `react-native-health-connect@4`
+(+ `expo-build-properties` con `minSdkVersion 26`) + config plugin oficial; **plugin local
+`plugins/withHealthConnectQueries.js`** agrega el `<queries>` de `com.google.android.apps.healthdata`
+(el plugin oficial solo pone el rationale). Permisos en `app.json → android.permissions`
+(`READ_STEPS`, `READ_NUTRITION`). Puente `lib/health.ts` (ÚNICO que toca el nativo: `tienePermiso`/
+`pedirPermiso`/`conectarHealthConnect`/`abrirHealthConnect`/`estadoHealthConnect`/`leerPasosDeHoy`).
+Orquestación `lib/data/salud.ts`: `objetivosHealthConnect`, `sincronizarHealthConnect(interactivo)`
+(por cada objetivo con `fuente_datos=HEALTH_CONNECT` lee el valor de hoy y hace upsert vía
+`registrarValorNumerico` — guarda SOLO el valor, no el flujo crudo 🔒). En el form: switch "🔗 Traer de
+Health Connect" (NUMERIC). En Hoy: auto-sync al abrir (si hay permiso) + tarjeta especial (tag +
+botón Actualizar, sin botones manuales). Perfil → sección **Permisos** (estado + Conectar/Administrar).
+Fix incluido: al crear/editar un objetivo ahora se invalida `['esperados-hoy','semanales-hoy',
+'objetivos-hc']` (antes el objetivo nuevo no aparecía en Hoy hasta reiniciar).
+
+**Fase 19 HECHA — Health Connect: calorías + comidas.** Un objetivo HC puede traer **pasos o calorías**;
+la métrica se deriva de la **unidad** (`metricaDeUnidad`: `/cal/i` → CALORIES, si no STEPS) para NO
+tocar el schema. Form: al activar HC aparece selector **👟 Pasos / 🍎 Calorías** (fija la unidad
+`pasos`/`kcal` + meta sugerida; unidad read-only). `lib/health.ts` lee Nutrition: `leerComidasDeHoy`
+(nombre + kcal `energy.inKilocalories` + mealType) y `leerCaloriasDeHoy` (suma). `salud.ts`:
+`comidasDeHoy(interactivo)` + tipo `ComidaHC`. En Hoy: la tarjeta de calorías tiene un **ícono info ℹ️
+al lado del nombre** que abre un **modal "🍽️ Comidas de hoy"** (lista en violeta claro + total). La
+pantalla de editar quedó SOLO con lo editable (las comidas NO van ahí, decisión de la usuaria).
+**Requiere una app que escriba nutrición a Health Connect** (la usuaria usa **SnapCalorie** → Samsung
+Health → HC). Los datos de Samsung Health a HC tienen **latencia** (el contador en vivo va adelante).
+Ver [[health-connect]].
+
+**Cómo se desarrolla/prueba HC (dev build + USB):** dev build de EAS instalado por cable
+(`adb install -r`), `adb reverse tcp:8081 tcp:8081` (túnel que evita los líos de WiFi), Metro con
+`npx expo start --dev-client`, y se abre apuntando a localhost con
+`adb shell am start -a android.intent.action.VIEW -d "objetivosdragon://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"`.
+**Solo se recompila si cambia config nativa** (permiso nuevo); el resto es hot reload. `adb` está en
+`~/Android/Sdk/platform-tools/adb`.
+
+Próximo (orden de la usuaria): ~~APK~~ (hecho) → ~~Health Connect~~ (hecho: pasos + calorías/comidas) →
+IA+Calendario. Pendientes opcionales de HC: sueño/agua/ejercicio (mismo molde, cada uno = permiso +
+rebuild).
 
 Fase 11 quedó completa salvo el **build** (diferido, ver memoria [[build-apk-diferido]]).
 Hecho Fase 1: `esquema.sql` + `esquema-dragones.sql` aplicados; tipos en `lib/types.ts`;

@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -29,14 +30,18 @@ import { EstadoMensaje } from '@/components/ui/EstadoMensaje';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { radius, spacing, type Tema } from '@/constants/theme';
 import {
+  comidasDeHoy,
   completarTarea,
   esperadosHoy,
   listarCategorias,
   listarTareas,
   marcarObjetivoCompletado,
+  metricaDeUnidad,
+  objetivosHealthConnect,
   omitirObjetivo,
   registrarValorNumerico,
   semanalesHoy,
+  sincronizarHealthConnect,
 } from '@/lib/data';
 import { estadoDragon, mensajeDragon } from '@/logic/dragon';
 import { hoyISO, horaActual, sumarDiasISO } from '@/logic/fecha';
@@ -44,6 +49,10 @@ import { creditoObjetivo, type EsperadoHoy, pasosNumericos, porcentajeDia } from
 
 /** Formatea un número sin decimales sobrantes (250 → "250", 2.5 → "2,5"). */
 const fmt = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
+
+// MealType de Health Connect (0=desconocido, 1=desayuno, 2=almuerzo, 3=cena, 4=snack).
+const etiquetaComida = (t: number) =>
+  ({ 1: 'Desayuno', 2: 'Almuerzo', 3: 'Cena', 4: 'Snack' })[t] ?? 'Comida';
 
 export default function HoyScreen() {
   const queryClient = useQueryClient();
@@ -68,6 +77,9 @@ export default function HoyScreen() {
   const { data: tareas } = useQuery({ queryKey: ['tareas'], queryFn: () => listarTareas() });
   const { data: categorias } = useQuery({ queryKey: ['categorias'], queryFn: listarCategorias });
   const catMap = new Map((categorias ?? []).map((c) => [c.id_categoria, c]));
+  // Objetivos que se autocompletan desde Health Connect (para marcarlos en la UI).
+  const { data: hcObjetivos } = useQuery({ queryKey: ['objetivos-hc'], queryFn: objetivosHealthConnect });
+  const hcIds = new Set((hcObjetivos ?? []).map((o) => o.id_objetivo));
 
   const lista = esperados ?? [];
   const booleanos = lista.filter((o) => o.tipo === 'BOOLEAN');
@@ -88,6 +100,14 @@ export default function HoyScreen() {
   // Modal para crear un botón nuevo (valor personalizado) de un objetivo numérico.
   const [editando, setEditando] = useState<EsperadoHoy | null>(null);
   const [texto, setTexto] = useState('');
+
+  // Modal con el detalle de comidas de hoy (Health Connect) del objetivo de calorías.
+  const [detalleComidas, setDetalleComidas] = useState(false);
+  const { data: comidasRes, isFetching: comidasFetching } = useQuery({
+    queryKey: ['comidas-hoy'],
+    queryFn: () => comidasDeHoy(false),
+    enabled: detalleComidas,
+  });
   const abrirPersonalizar = (o: EsperadoHoy) => {
     setEditando(o);
     setTexto('');
@@ -152,6 +172,34 @@ export default function HoyScreen() {
     mutationFn: ({ id, valor }: { id: string; valor: boolean }) => omitirObjetivo(id, hoy, valor),
     onSuccess: refrescarHoyYProgreso,
   });
+
+  // Health Connect: traer los datos de hoy (pasos/calorías). interactivo=true dispara el permiso.
+  const sincronizarHC = useMutation({
+    mutationFn: (interactivo: boolean) => sincronizarHealthConnect(interactivo),
+    onSuccess: (res) => {
+      if (res.ok) return refrescarHoyYProgreso();
+      if (res.motivo === 'sin-permiso')
+        Alert.alert('Permiso necesario', 'Permití el acceso en Health Connect para traer tus datos.');
+      else if (res.motivo === 'no-disponible')
+        Alert.alert(
+          'Health Connect no disponible',
+          'Instalá o activá Health Connect en tu teléfono (y una app que registre esos datos) para traerlos solos.',
+        );
+      else if (res.motivo === 'error')
+        Alert.alert('No se pudo sincronizar', 'Hubo un problema leyendo los datos de Health Connect.');
+    },
+  });
+
+  // Al abrir Hoy: si ya hay permiso, traer los datos en silencio (sin diálogo).
+  useEffect(() => {
+    if ((hcObjetivos?.length ?? 0) === 0) return;
+    sincronizarHealthConnect(false)
+      .then((res) => {
+        if (res.ok) refrescarHoyYProgreso();
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hcObjetivos?.length]);
 
   const guardarPaso = () => {
     if (!editando) return;
@@ -326,6 +374,50 @@ export default function HoyScreen() {
                 const [pasoChico, pasoGrande] = pasosNumericos(o.meta_valor);
                 const sumar = (paso: number) =>
                   registrar.mutate({ id: o.id_objetivo, valor: valor + paso, meta: o.meta_valor });
+
+                // Objetivo autocompletado desde Health Connect: sin botones manuales.
+                if (hcIds.has(o.id_objetivo)) {
+                  const esCal = metricaDeUnidad(o.unidad) === 'CALORIES';
+                  return (
+                    <View
+                      key={o.id_objetivo}
+                      style={[styles.recordaRow, ultimo && { borderBottomWidth: 0 }]}>
+                      <Text style={styles.recordaEmoji}>{cat?.icono ?? (esCal ? '🍎' : '👟')}</Text>
+                      <View style={{ flex: 1, gap: 8 }}>
+                        <View style={styles.rowBetween}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 }}>
+                            <Text style={styles.itemLabel}>{o.nombre}</Text>
+                            {esCal && (
+                              <Pressable onPress={() => setDetalleComidas(true)} hitSlop={10}>
+                                <Ionicons name="information-circle-outline" size={17} color={colors.purple} />
+                              </Pressable>
+                            )}
+                          </View>
+                          <Text style={styles.muted}>
+                            {fmt(valor)}/{o.meta_valor} {o.unidad ?? ''}
+                          </Text>
+                        </View>
+                        <ProgressBar progress={creditoObjetivo(o)} color={colors.blue} />
+                        <View style={styles.hcFooter}>
+                          <Text style={styles.hcTag}>🔗 Health Connect</Text>
+                          <Pressable
+                            style={styles.stepBtnGhost}
+                            onPress={() => sincronizarHC.mutate(true)}
+                            disabled={sincronizarHC.isPending}>
+                            {sincronizarHC.isPending ? (
+                              <ActivityIndicator size="small" color={colors.purple} />
+                            ) : (
+                              <>
+                                <Ionicons name="refresh" size={14} color={colors.purple} />
+                                <Text style={styles.stepText}>Actualizar</Text>
+                              </>
+                            )}
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                }
 
                 if (o.omitido) {
                   return (
@@ -507,6 +599,52 @@ export default function HoyScreen() {
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={detalleComidas}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetalleComidas(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setDetalleComidas(false)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>🍽️ Comidas de hoy</Text>
+            {comidasFetching && !comidasRes ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={colors.purple} />
+            ) : comidasRes?.ok ? (
+              comidasRes.comidas.length === 0 ? (
+                <Text style={styles.muted}>Todavía no hay comidas registradas hoy.</Text>
+              ) : (
+                <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={styles.comidasBox}>
+                  {comidasRes.comidas.map((c, i) => (
+                    <View key={i} style={styles.comidaRow}>
+                      <Text style={styles.comidaNombre} numberOfLines={1}>
+                        {etiquetaComida(c.mealType)}
+                        {c.nombre ? ` · ${c.nombre}` : ''}
+                      </Text>
+                      <Text style={styles.comidaKcal}>{c.kcal} kcal</Text>
+                    </View>
+                  ))}
+                  <View style={[styles.comidaRow, { borderBottomWidth: 0 }]}>
+                    <Text style={styles.comidaTotal}>Total</Text>
+                    <Text style={styles.comidaTotal}>
+                      {comidasRes.comidas.reduce((s, c) => s + c.kcal, 0)} kcal
+                    </Text>
+                  </View>
+                </ScrollView>
+              )
+            ) : (
+              <Text style={styles.muted}>
+                {comidasRes?.motivo === 'sin-permiso'
+                  ? 'Permití el acceso a la nutrición en Health Connect para ver tus comidas.'
+                  : 'No se pudieron leer las comidas de Health Connect.'}
+              </Text>
+            )}
+            <Pressable style={styles.cerrarBtn} onPress={() => setDetalleComidas(false)}>
+              <Text style={styles.modalBtnPrimaryText}>Cerrar</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -618,6 +756,37 @@ const makeStyles = (colors: Tema) =>
     paddingHorizontal: 12,
   },
   stepText: { color: colors.purple, fontWeight: '800', fontSize: 12.5 },
+  hcFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
+  hcTag: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textMuted,
+    backgroundColor: colors.track,
+    borderRadius: radius.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    overflow: 'hidden',
+  },
+  comidaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  comidaNombre: { flex: 1, fontSize: 14, color: colors.text },
+  comidaKcal: { fontSize: 13, fontWeight: '700', color: colors.textMuted },
+  comidaTotal: { fontSize: 14.5, fontWeight: '800', color: colors.text },
+  comidasBox: { backgroundColor: colors.cardPurple, borderRadius: radius.md, paddingHorizontal: 12 },
+  cerrarBtn: {
+    backgroundColor: colors.purple,
+    borderRadius: radius.md,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginTop: 12,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(36,31,56,0.4)',

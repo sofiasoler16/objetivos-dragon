@@ -12,6 +12,10 @@
     },
     "android": {
       "package": "com.sofisoler.objetivosdragon",
+      "permissions": [
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_NUTRITION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -35,7 +39,17 @@
           "imageWidth": 76
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      "./plugins/withHealthConnectQueries"
     ],
     "experiments": {
       "typedRoutes": true,
