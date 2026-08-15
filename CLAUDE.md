@@ -221,9 +221,91 @@ Ver [[health-connect]].
 **Solo se recompila si cambia config nativa** (permiso nuevo); el resto es hot reload. `adb` está en
 `~/Android/Sdk/platform-tools/adb`.
 
+**Objetivos predeterminados (presets) HECHO:** los "Sugeridos" (Pasos 👟 8000, Calorías 🍎 2000 kcal,
+Agua 💧 2000 ml) son objetivos NORMALES marcados con `clave_preset` (columna nueva, migración
+`agregar-clave-preset.sql` — corrida + tipos regenerados). Se prenden/apagan con un interruptor en la
+pestaña Objetivos (sección **Sugeridos**, abajo de "Objetivos") en vez de crearlos a mano; activos,
+son objetivos comunes (editás meta/días, se conectan a HC igual). Catálogo puro `logic/presets.ts`
+(`PRESETS`, `clavePresetDe`); capa `lib/data/presets.ts` (`listarEstadoPresets`/`activarPreset`/
+`desactivarPreset`). **Activar** = crear desde defaults (DAILY·NUMERIC, `fecha_inicio=hoyISO()`, con la
+`fuente_datos` del preset) o **reactivar** la fila existente conservando ediciones; **desactivar** =
+`activo=false` (oculta sin borrar → índice único parcial `(id_usuario, clave_preset)` garantiza una
+sola fila y que reactivar restaure lo editado). Los presets activos salen de la lista "Objetivos"
+(filtro `clavePresetDe`) para no duplicar, pero SÍ aparecen en Hoy (y los de HC se autcollenan). Al
+togglear se invalidan `['presets','objetivos','esperados-hoy','semanales-hoy','objetivos-hc']`.
+Pendiente futuro: modo "meta vs límite" para calorías (alcanzar vs no pasarse), se dejó para después.
+
+**Fix UI:** los `placeholder` de todos los `TextInput` (login, registro, categorías, objetivo, tarea)
+ahora fijan `placeholderTextColor={colors.textMuted}` (antes tomaban un default invisible en el tema).
+
+**Fase 20 HECHA — Calendario del dispositivo (Track B).** Lee los eventos del **calendario del
+teléfono** con `expo-calendar@15` (solo lectura, incluye los de Google que el SO sincroniza) — NO la
+API de Google Calendar (evita su verificación OAuth). Puente ÚNICO `lib/calendario.ts`
+(`permisoCalendario`/`pedirPermisoCalendario`/`leerEventos` → tipo `EventoCalendario` normalizado).
+Orquestación `lib/data/agenda.ts`: `eventosDeLaSemana(interactivo)` arma lun→dom (🔒 semana=lunes,
+TZ usuario) agrupando por día (best-effort, nunca lanza); los eventos **de todo el día** toman el día
+de `inicio.slice(0,10)` para no correrse por TZ. Lógica pura `logic/agenda.ts` (`nombreDia`,`horaHHMM`,
+`rangoHorario`). Pantalla nueva **`app/agenda.tsx` "Mi semana"** (futura premium): lista de la semana
+con Hoy destacado, puntito con el color del calendario de origen, botón "Conectar calendario" si falta
+permiso, y botón **"Organizá mi semana con la IA"** (placeholder → se cablea en Fase 21). Se entra por
+un **recuadro violeta "Mi semana" arriba en la pestaña Objetivos** (`router.push('/agenda')`) — NO en
+Perfil. Config: plugin `expo-calendar` en `app.json` (agrega permisos READ/WRITE_CALENDAR en Android;
+solo usamos lectura — al publicar conviene dejar solo READ), ruta en `_layout`. Query `['agenda-semana']`.
+**⚠️ Requirió rebuild del dev build** (módulo nativo): dev build development recompilado con
+`EAS_NO_VCS=1 eas build --profile development --platform android` + `adb install -r`. Ver [[calendario]].
+
+**Fase 21 HECHA — Edge Function + IA "Organizá mi semana" (Track B).** 🔒 La IA PROPONE, el código
+EJECUTA (la IA nunca escribe en la base). Edge Function `supabase/functions/organizar-semana/index.ts`
+(Deno): valida `Authorization` + `supabase.auth.getUser()` (protege los créditos de la API), arma el
+`systemPrompt(hoy, categorias)` (guardrail estricto: SOLO agendar objetivos/tareas, si el pedido es de
+otro tema devuelve listas vacías + "Solo puedo ayudarte a agendar objetivos y tareas 🐉"; mapea a DAILY/
+SPECIFIC_DAYS/WEEKLY_COUNT, NUMERIC con meta+unidad o BOOLEAN, examen→fecha_fin+tarea, categorías SOLO
+de la lista), llama a **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`, `max_tokens 1600`) y devuelve
+SOLO el JSON. La API key vive como **secret de Supabase** (`ANTHROPIC_API_KEY`), nunca en la app.
+Cliente: `logic/ia.ts` (tipos `PropuestaIA`/`ObjetivoPropuesto`/`TareaPropuesta` + `sanitizarPropuesta`
+= última barrera 🔒: descarta enums/frecuencias/categorías/fechas inválidas antes de escribir);
+`lib/data/ia.ts` (`organizarSemana(texto)` invoca la función con `{texto, hoy, categorias}` y sanea;
+`crearDesdePropuesta(objetivos, tareas)` escribe vía `crearObjetivo`/`crearTarea`).
+`components/OrganizarSemanaModal.tsx` (modal full-screen: escribir pedido → "Generar propuesta" → lista
+con checkboxes por objetivo/tarea → "Agendar (N)" → invalida `['objetivos','tareas','esperados-hoy',
+'semanales-hoy']`). Cableado en `app/agenda.tsx` (el botón "Organizá mi semana con la IA" abre el modal).
+`supabase/functions` excluido en `tsconfig.json` (código Deno). **Desplegada y probada** (la usuaria
+cargó ~US$5 de crédito en console.anthropic.com, key como secret, `supabase functions deploy
+organizar-semana`). Costo: Edge Functions gratis (≤500k/mes), la IA se paga por token (centavos).
+No requirió rebuild (es 100% JS; el dev build carga el código por Metro). Ver [[ia-organizar-semana]].
+
+**Fase 21.1 HECHA — Objetivos "con horario" + espejo a Google Calendar + anti-solapes.** Migración
+aditiva `agregar-horario-objetivos.sql` (corrida): `hora_inicio`/`hora_fin`/`id_evento_calendario` en
+`objetivo` y `tarea` (tipos regenerados). **Con hora_inicio+hora_fin = EVENTO** (se agenda en el
+calendario); **sin hora = objetivo del día** (no es evento); WEEKLY_COUNT nunca lleva hora (sin día
+fijo). El evento se escribe en el **calendario PRINCIPAL de Google del usuario** con prefijo de título
+**MARCA "🐉 "** — Android NO deja crear una capa dedicada que sincronice (solo Google, vía su API OAuth
+que se evitó); un calendario local no sincroniza a la web. `lib/calendario.ts` ahora ESCRIBE:
+`calendarioDestino(preferirEmail)` (elige el Google primario de la cuenta logueada, cae a cualquiera
+modificable), `crearEventoDragon` (prefija 🐉, recurrencia WEEKLY para SPECIFIC_DAYS vía isoADiaExpo,
+DAILY = los 7 días, `endDate`=fecha_fin), `borrarEventoDragon`; `leerEventos` EXCLUYE por defecto los
+títulos con 🐉 (ya salen de la base → sin duplicados). `lib/data/agenda.ts`: `eventosDeLaSemana(interactivo,
+lunesISO)` ahora mezcla eventos externos + objetivos/tareas propios con horario (tipo `ItemAgenda`,
+`esApp`), con **navegación de semanas**; `compromisosDeContexto(21)` arma los bloques ocupados;
+`espejarEnCalendario`/`borrarEspejo`. `logic/agenda.ts`+`logic/ia.ts`: helpers puros
+(`primeraFechaOcurrencia`, `ocurrenciasObjetivo`/`ocurrenciasTarea`, `conflicto`/`primerConflicto`).
+`crearDesdePropuesta` guarda hora + espeja el evento y guarda `id_evento_calendario`; `eliminarObjetivo`/
+`eliminarTarea` borran el evento espejo. La IA recibe los compromisos (no pisar) + puede agendar a
+FUTURO; el prompt pide revisar cada día de la recurrencia. **🔒 La IA no es 100% confiable con horarios
+→ el cliente valida:** `organizarSemana` devuelve `{propuesta, ocupado}`; `OrganizarSemanaModal` deja
+**mover la hora** (DateTimeField) y muestra **⚠️ aviso de solapamiento** (contra lo ocupado + los otros
+ítems propuestos), que se resuelve al mover la hora. `app/agenda.tsx` navega semanas y marca los
+objetivos con tag 🐉. **Probado end-to-end** (evento aparece en Google Calendar de la cuenta logueada;
+⚠️ aparece/desaparece). Pendiente futuro: capa dedicada sincronizada = requeriría la **API de Google
+Calendar** (OAuth + verificación de Google), diferida a la etapa de publicación. Ver [[objetivos-con-horario]].
+
 Próximo (orden de la usuaria): ~~APK~~ (hecho) → ~~Health Connect~~ (hecho: pasos + calorías/comidas) →
-IA+Calendario. Pendientes opcionales de HC: sueño/agua/ejercicio (mismo molde, cada uno = permiso +
-rebuild).
+~~objetivos predeterminados~~ (hecho) → ~~Calendario (Fase 20)~~ (hecho) → ~~Fase 21: IA "Organizá mi
+semana"~~ (hecho). **Todo el bloque V2 (nativo + IA) planeado está COMPLETO.** Queda solo **Track C —
+Publicación (Fase 22)** cuando la usuaria decida (política de privacidad + declaración de salud +
+closed test 12 testers × 14 días). Pendientes OPCIONALES: HC sueño/agua/ejercicio (mismo molde, cada
+uno = permiso + rebuild); modo "meta vs límite" para calorías; gating Premium de "Mi semana"; rotar la
+API key de Anthropic (quedó expuesta en el chat del despliegue).
 
 Fase 11 quedó completa salvo el **build** (diferido, ver memoria [[build-apk-diferido]]).
 Hecho Fase 1: `esquema.sql` + `esquema-dragones.sql` aplicados; tipos en `lib/types.ts`;

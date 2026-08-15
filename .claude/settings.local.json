@@ -61,7 +61,20 @@
       "Bash(node -e ')",
       "Bash(grep -nE \"EsperadoHoy|fuente_datos|Recordá|numeric|NUMERIC|persistirPasos|registrarValorNumerico|useFocusEffect|esperados-hoy|function |const .*= useMutation|=> \\\\{$\" \"app/\\(tabs\\)/index.tsx\")",
       "Bash(grep -nA12 \"export function hoyISO\" logic/fecha.ts)",
-      "Bash(grep -nA6 \"const invalidar\" \"app/objetivo/[id].tsx\")"
+      "Bash(grep -nA6 \"const invalidar\" \"app/objetivo/[id].tsx\")",
+      "Bash(~/Android/Sdk/platform-tools/adb reverse *)",
+      "Bash(supabase gen *)",
+      "Bash(break)",
+      "Bash(~/Android/Sdk/platform-tools/adb shell *)",
+      "Bash(node *)",
+      "Bash(eas whoami *)",
+      "Bash(EAS_NO_VCS=1 eas build *)",
+      "Bash(eas build:list --limit 1 --non-interactive --json)",
+      "Bash(supabase --version)",
+      "Bash(supabase projects *)",
+      "Bash(supabase functions *)",
+      "Bash(curl -s -m 2 http://localhost:8081/status)",
+      "Bash(echo \"=== EXIT $? ===\")"
     ]
   }
 }

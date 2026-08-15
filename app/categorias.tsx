@@ -155,6 +155,7 @@ export default function CategoriasScreen() {
           <TextInput
             style={styles.input}
             placeholder="Ej: Fitness"
+            placeholderTextColor={colors.textMuted}
             value={nombre}
             onChangeText={setNombre}
             autoFocus

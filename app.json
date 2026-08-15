@@ -42,6 +42,12 @@
       "@react-native-community/datetimepicker",
       "react-native-health-connect",
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Objetivos Dragón usa tu calendario para mostrarte los eventos de la semana y ayudarte a organizarla."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

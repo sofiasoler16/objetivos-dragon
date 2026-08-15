@@ -17,7 +17,8 @@ import { type Tema } from '@/constants/theme';
 import { registrarse } from '@/lib/data';
 
 export default function RegistroScreen() {
-  const styles = makeStyles(useTheme());
+  const colors = useTheme();
+  const styles = makeStyles(colors);
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -58,6 +59,7 @@ export default function RegistroScreen() {
         <TextInput
           style={styles.input}
           placeholder="Nombre"
+          placeholderTextColor={colors.textMuted}
           autoCapitalize="words"
           value={nombre}
           onChangeText={setNombre}
@@ -65,6 +67,7 @@ export default function RegistroScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
@@ -74,6 +77,7 @@ export default function RegistroScreen() {
         <TextInput
           style={styles.input}
           placeholder="Contraseña (mín. 6)"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry
           value={password}
           onChangeText={setPassword}

@@ -130,10 +130,10 @@ export default function TareaFormScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Título</Text>
-        <TextInput style={styles.input} placeholder="Ej: Entregar TP de auditoría" value={titulo} onChangeText={setTitulo} />
+        <TextInput style={styles.input} placeholder="Ej: Entregar TP de auditoría" placeholderTextColor={colors.textMuted} value={titulo} onChangeText={setTitulo} />
 
         <Text style={styles.label}>Descripción (opcional)</Text>
-        <TextInput style={styles.input} placeholder="Nota corta" value={descripcion} onChangeText={setDescripcion} />
+        <TextInput style={styles.input} placeholder="Nota corta" placeholderTextColor={colors.textMuted} value={descripcion} onChangeText={setDescripcion} />
 
         <Text style={styles.label}>Categoría</Text>
         <View style={styles.chipsWrap}>

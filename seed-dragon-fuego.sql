@@ -19,7 +19,7 @@ where not exists (select 1 from tema where nombre = 'Fuego');
 -- Dragón Fuego (comprable con créditos).
 insert into dragon (nombre, descripcion, asset_key, id_tema, credit_cost,
                     premium_required, es_inicial, activo, orden)
-select 'Fuego', 'Un dragón de brasa, para los que no se apagan.', 'dragon_fuego',
+select 'Fuego', 'Un dragón de fuego, para los que no se apagan.', 'dragon_fuego',
        t.id_tema, 100, false, false, true, 2
 from tema t
 where t.nombre = 'Fuego'

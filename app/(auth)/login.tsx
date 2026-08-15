@@ -17,7 +17,8 @@ import { type Tema } from '@/constants/theme';
 import { iniciarSesion } from '@/lib/data';
 
 export default function LoginScreen() {
-  const styles = makeStyles(useTheme());
+  const colors = useTheme();
+  const styles = makeStyles(colors);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -47,6 +48,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Email"
+          placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
@@ -56,6 +58,7 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="Contraseña"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry
           value={password}
           onChangeText={setPassword}

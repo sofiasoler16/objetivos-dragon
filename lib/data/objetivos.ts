@@ -1,3 +1,4 @@
+import { borrarEventoDragon } from '../calendario';
 import { supabase } from '../supabase';
 import type { Tables, TablesInsert, TablesUpdate } from '../types';
 import { requireUserId } from './_helpers';
@@ -123,7 +124,14 @@ export async function actualizarObjetivo(
 }
 
 export async function eliminarObjetivo(id_objetivo: string): Promise<void> {
+  // Si tenía evento espejo en el calendario, lo borramos también (best-effort).
+  const { data } = await supabase
+    .from('objetivo')
+    .select('id_evento_calendario')
+    .eq('id_objetivo', id_objetivo)
+    .maybeSingle();
   // `objetivo_dia` y `registro_objetivo` caen por ON DELETE CASCADE.
   const { error } = await supabase.from('objetivo').delete().eq('id_objetivo', id_objetivo);
   if (error) throw error;
+  if (data?.id_evento_calendario) await borrarEventoDragon(data.id_evento_calendario);
 }

@@ -187,10 +187,10 @@ export default function ObjetivoFormScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Nombre</Text>
-        <TextInput style={styles.input} placeholder="Ej: Ir al gym" value={nombre} onChangeText={setNombre} />
+        <TextInput style={styles.input} placeholder="Ej: Ir al gym" placeholderTextColor={colors.textMuted} value={nombre} onChangeText={setNombre} />
 
         <Text style={styles.label}>Descripción (opcional)</Text>
-        <TextInput style={styles.input} placeholder="Nota corta" value={descripcion} onChangeText={setDescripcion} />
+        <TextInput style={styles.input} placeholder="Nota corta" placeholderTextColor={colors.textMuted} value={descripcion} onChangeText={setDescripcion} />
 
         <Text style={styles.label}>Categoría</Text>
         <View style={styles.chipsWrap}>
@@ -229,6 +229,7 @@ export default function ObjetivoFormScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="2000"
+                placeholderTextColor={colors.textMuted}
                 keyboardType="numeric"
                 value={metaValor}
                 onChangeText={setMetaValor}
@@ -239,6 +240,7 @@ export default function ObjetivoFormScreen() {
               <TextInput
                 style={[styles.input, fuenteHC && styles.inputDisabled]}
                 placeholder="ml, pasos…"
+                placeholderTextColor={colors.textMuted}
                 value={unidad}
                 onChangeText={setUnidad}
                 editable={!fuenteHC}
@@ -252,8 +254,8 @@ export default function ObjetivoFormScreen() {
             <View style={{ flex: 1, paddingRight: 10 }}>
               <Text style={styles.hcTitle}>🔗 Traer de Health Connect</Text>
               <Text style={styles.hcHelp}>
-                Los pasos de hoy se completan solos desde Health Connect (Android). Necesitás una app
-                que registre tus pasos (Google Fit, Samsung Health…).
+                Los pasos, comidas, etc. se completan solos desde Health Connect (Android). Necesitás una app
+                que los registre(Google Fit, Samsung Health…).
               </Text>
             </View>
             <Switch
@@ -324,6 +326,7 @@ export default function ObjetivoFormScreen() {
             <TextInput
               style={styles.input}
               placeholder="3"
+              placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
               value={cantidad}
               onChangeText={setCantidad}

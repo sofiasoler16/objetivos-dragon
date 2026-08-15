@@ -43,6 +43,7 @@ function RootNavigator() {
       <Stack.Screen name="perfil" options={{ presentation: 'modal' }} />
       <Stack.Screen name="mi-dragon" options={{ presentation: 'modal' }} />
       <Stack.Screen name="categorias" />
+      <Stack.Screen name="agenda" />
       <Stack.Screen name="objetivo/[id]" />
       <Stack.Screen name="tarea/[id]" />
       <Stack.Screen name="(auth)" />

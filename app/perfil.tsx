@@ -149,7 +149,7 @@ export default function PerfilScreen() {
             )}
           </View>
           <Text style={styles.muted}>
-            Conectá Health Connect para traer tus pasos solos. Para que haya datos, Samsung Health (u
+            Conectá Health Connect para traer tus pasos, comidas, etc. Para que haya datos, Samsung Health, Google Fit (u
             otra app de actividad) tiene que compartir tus pasos con Health Connect.
           </Text>
         </Card>

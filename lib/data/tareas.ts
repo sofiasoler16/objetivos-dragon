@@ -1,3 +1,4 @@
+import { borrarEventoDragon } from '../calendario';
 import { supabase } from '../supabase';
 import type { Tables, TablesInsert, TablesUpdate } from '../types';
 import { requireUserId } from './_helpers';
@@ -74,6 +75,12 @@ export async function completarTarea(
 }
 
 export async function eliminarTarea(id_tarea: string): Promise<void> {
+  const { data } = await supabase
+    .from('tarea')
+    .select('id_evento_calendario')
+    .eq('id_tarea', id_tarea)
+    .maybeSingle();
   const { error } = await supabase.from('tarea').delete().eq('id_tarea', id_tarea);
   if (error) throw error;
+  if (data?.id_evento_calendario) await borrarEventoDragon(data.id_evento_calendario);
 }

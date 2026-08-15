@@ -290,6 +290,7 @@ export type Database = {
       objetivo: {
         Row: {
           activo: boolean
+          clave_preset: string | null
           descripcion: string | null
           fecha_creacion: string
           fecha_fin: string | null
@@ -297,8 +298,11 @@ export type Database = {
           frecuencia_cantidad: number | null
           frecuencia_tipo: Database["public"]["Enums"]["frecuencia_tipo"]
           fuente_datos: Database["public"]["Enums"]["fuente_datos"]
+          hora_fin: string | null
+          hora_inicio: string | null
           hora_recordatorio: string | null
           id_categoria: string | null
+          id_evento_calendario: string | null
           id_objetivo: string
           id_usuario: string
           meta_valor: number | null
@@ -308,6 +312,7 @@ export type Database = {
         }
         Insert: {
           activo?: boolean
+          clave_preset?: string | null
           descripcion?: string | null
           fecha_creacion?: string
           fecha_fin?: string | null
@@ -315,8 +320,11 @@ export type Database = {
           frecuencia_cantidad?: number | null
           frecuencia_tipo: Database["public"]["Enums"]["frecuencia_tipo"]
           fuente_datos?: Database["public"]["Enums"]["fuente_datos"]
+          hora_fin?: string | null
+          hora_inicio?: string | null
           hora_recordatorio?: string | null
           id_categoria?: string | null
+          id_evento_calendario?: string | null
           id_objetivo?: string
           id_usuario: string
           meta_valor?: number | null
@@ -326,6 +334,7 @@ export type Database = {
         }
         Update: {
           activo?: boolean
+          clave_preset?: string | null
           descripcion?: string | null
           fecha_creacion?: string
           fecha_fin?: string | null
@@ -333,8 +342,11 @@ export type Database = {
           frecuencia_cantidad?: number | null
           frecuencia_tipo?: Database["public"]["Enums"]["frecuencia_tipo"]
           fuente_datos?: Database["public"]["Enums"]["fuente_datos"]
+          hora_fin?: string | null
+          hora_inicio?: string | null
           hora_recordatorio?: string | null
           id_categoria?: string | null
+          id_evento_calendario?: string | null
           id_objetivo?: string
           id_usuario?: string
           meta_valor?: number | null
@@ -535,8 +547,11 @@ export type Database = {
           fecha_completada: string | null
           fecha_creacion: string
           fecha_limite: string | null
+          hora_fin: string | null
+          hora_inicio: string | null
           hora_limite: string | null
           id_categoria: string | null
+          id_evento_calendario: string | null
           id_tarea: string
           id_usuario: string
           prioridad: Database["public"]["Enums"]["prioridad_tarea"]
@@ -548,8 +563,11 @@ export type Database = {
           fecha_completada?: string | null
           fecha_creacion?: string
           fecha_limite?: string | null
+          hora_fin?: string | null
+          hora_inicio?: string | null
           hora_limite?: string | null
           id_categoria?: string | null
+          id_evento_calendario?: string | null
           id_tarea?: string
           id_usuario: string
           prioridad?: Database["public"]["Enums"]["prioridad_tarea"]
@@ -561,8 +579,11 @@ export type Database = {
           fecha_completada?: string | null
           fecha_creacion?: string
           fecha_limite?: string | null
+          hora_fin?: string | null
+          hora_inicio?: string | null
           hora_limite?: string | null
           id_categoria?: string | null
+          id_evento_calendario?: string | null
           id_tarea?: string
           id_usuario?: string
           prioridad?: Database["public"]["Enums"]["prioridad_tarea"]
@@ -701,6 +722,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      comprar_dragon: { Args: { p_id_dragon: string }; Returns: undefined }
       detalle_dia: {
         Args: { p_fecha: string }
         Returns: {
@@ -732,6 +754,20 @@ export type Database = {
           valor: number
         }[]
       }
+      evaluar_logros: {
+        Args: never
+        Returns: {
+          credit_reward: number
+          descripcion: string
+          id_logro: string
+          nombre: string
+          xp_reward: number
+        }[]
+      }
+      otorgar_recompensa: {
+        Args: { p_clave: string; p_motivo: string }
+        Returns: undefined
+      }
       progreso_por_dia: {
         Args: { p_desde: string; p_hasta: string; p_tz?: string }
         Returns: {
@@ -753,6 +789,7 @@ export type Database = {
           tipo: Database["public"]["Enums"]["tipo_objetivo"]
         }[]
       }
+      revocar_recompensa: { Args: { p_clave: string }; Returns: undefined }
       semanales_hoy: {
         Args: { p_tz?: string }
         Returns: {

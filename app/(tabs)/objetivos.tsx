@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DragonButton } from '@/components/DragonButton';
 import { DragonMascot } from '@/components/DragonMascot';
@@ -14,9 +14,19 @@ import { Card } from '@/components/ui/Card';
 import { EstadoMensaje } from '@/components/ui/EstadoMensaje';
 import { SpeechBubble } from '@/components/ui/SpeechBubble';
 import { spacing } from '@/constants/theme';
-import { completarTarea, listarCategorias, listarObjetivosConDias, listarTareas } from '@/lib/data';
+import {
+  activarPreset,
+  type ClavePreset,
+  completarTarea,
+  desactivarPreset,
+  listarCategorias,
+  listarEstadoPresets,
+  listarObjetivosConDias,
+  listarTareas,
+} from '@/lib/data';
 import { type Tema } from '@/constants/theme';
 import { resumenFrecuencia } from '@/logic/objetivos';
+import { clavePresetDe } from '@/logic/presets';
 import { resumenTarea } from '@/logic/tareas';
 
 export default function ObjetivosScreen() {
@@ -42,7 +52,22 @@ export default function ObjetivosScreen() {
     isError: errorTareas,
     refetch: refetchTareas,
   } = useQuery({ queryKey: ['tareas'], queryFn: () => listarTareas() });
+  const { data: presets } = useQuery({ queryKey: ['presets'], queryFn: listarEstadoPresets });
   const catMap = new Map((categorias ?? []).map((c) => [c.id_categoria, c]));
+
+  // Los presets activos son objetivos reales: se muestran en "Sugeridos", no en la lista común.
+  const recurrentes = objetivos?.filter((o) => !clavePresetDe(o));
+
+  const togglePreset = useMutation({
+    mutationFn: async ({ clave, activar }: { clave: ClavePreset; activar: boolean }) => {
+      if (activar) await activarPreset(clave);
+      else await desactivarPreset(clave);
+    },
+    onSuccess: () => {
+      for (const k of [['presets'], ['objetivos'], ['esperados-hoy'], ['semanales-hoy'], ['objetivos-hc']])
+        queryClient.invalidateQueries({ queryKey: k });
+    },
+  });
 
   const completar = useMutation({
     mutationFn: ({ id, completada, prioridad }: { id: string; completada: boolean; prioridad: 'BAJA' | 'MEDIA' | 'ALTA' }) =>
@@ -76,11 +101,23 @@ export default function ObjetivosScreen() {
           </View>
         </View>
 
-        {/* Objetivos recurrentes */}
+        {/* Mi semana (calendario + IA) */}
+        <Pressable style={styles.miSemana} onPress={() => router.push('/agenda')}>
+          <View style={styles.miSemanaIcon}>
+            <Ionicons name="calendar-outline" size={22} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.miSemanaTitulo}>Mi semana</Text>
+            <Text style={styles.miSemanaSub}>Tus eventos y objetivos de la semana</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#fff" />
+        </Pressable>
+
+        {/* Objetivos */}
         <View style={styles.sectionHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Ionicons name="refresh-outline" size={18} color={colors.purple} />
-            <Text style={styles.h2}>Objetivos recurrentes</Text>
+            <Text style={styles.h2}>Objetivos</Text>
           </View>
           <Pressable style={styles.nuevoBtn} onPress={() => router.push('/objetivo/nuevo')}>
             <Ionicons name="add" size={16} color="#fff" />
@@ -96,7 +133,7 @@ export default function ObjetivosScreen() {
             onReintentar={() => refetchObj()}
           />
         )}
-        {!cargandoObj && !errorObj && objetivos?.length === 0 && (
+        {!cargandoObj && !errorObj && recurrentes?.length === 0 && (
           <EstadoMensaje
             conDragon
             titulo="Todavía no tenés objetivos"
@@ -104,7 +141,7 @@ export default function ObjetivosScreen() {
           />
         )}
         <View style={{ gap: 10 }}>
-          {objetivos?.map((o) => {
+          {recurrentes?.map((o) => {
             const cat = o.id_categoria ? catMap.get(o.id_categoria) : undefined;
             return (
               <Card key={o.id_objetivo} style={styles.listRow}>
@@ -122,6 +159,45 @@ export default function ObjetivosScreen() {
             );
           })}
         </View>
+
+        {/* Sugeridos (presets): interruptor para activar objetivos predeterminados */}
+        {presets && presets.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="sparkles-outline" size={18} color={colors.purple} />
+                <Text style={styles.h2}>Sugeridos</Text>
+              </View>
+            </View>
+            <View style={{ gap: 10 }}>
+              {presets.map((p) => (
+                <Card key={p.clave} style={styles.listRow}>
+                  <View style={[styles.badge, { backgroundColor: colors.purple + '22' }]}>
+                    <Text style={{ fontSize: 20 }}>{p.icono}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemTitle}>{p.nombre}</Text>
+                    {p.activo && p.objetivo ? (
+                      <Pressable onPress={() => router.push(`/objetivo/${p.id_objetivo}`)} hitSlop={6}>
+                        <Text style={styles.editLink}>{resumenFrecuencia(p.objetivo)} · Editar</Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.muted}>{p.descripcion}</Text>
+                    )}
+                  </View>
+                  <Switch
+                    value={p.activo}
+                    onValueChange={(activar) => togglePreset.mutate({ clave: p.clave, activar })}
+                    disabled={togglePreset.isPending}
+                    trackColor={{ false: colors.track, true: colors.purple }}
+                    thumbColor="#fff"
+                    ios_backgroundColor={colors.track}
+                  />
+                </Card>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* Tareas */}
         <View style={styles.sectionHeader}>
@@ -201,6 +277,26 @@ const makeStyles = (colors: Tema) =>
   nuevoBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   vacio: { color: colors.textMuted, marginTop: 8 },
   muted: { fontSize: 12, color: colors.textMuted },
+  editLink: { fontSize: 12, color: colors.purple, fontWeight: '700' },
+  miSemana: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.purple,
+    borderRadius: 18,
+    padding: 14,
+    marginTop: spacing.md,
+  },
+  miSemanaIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff33',
+  },
+  miSemanaTitulo: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  miSemanaSub: { color: '#ffffffcc', fontSize: 12.5, marginTop: 1 },
   itemTitle: { fontSize: 14.5, color: colors.text },
   itemDone: { textDecorationLine: 'line-through', opacity: 0.5 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
