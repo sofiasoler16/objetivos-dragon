@@ -6,12 +6,13 @@ import { supabase } from '../supabase';
 export type DetalleDia = {
   id_objetivo: string;
   nombre: string;
-  tipo: 'BOOLEAN' | 'NUMERIC';
+  tipo: 'BOOLEAN' | 'NUMERIC' | 'DURATION';
   meta_valor: number | null;
   unidad: string | null;
   valor: number | null;
   completado: boolean;
   omitido: boolean;
+  razon_omision: string | null;
   credito: number;
 };
 

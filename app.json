@@ -1,26 +1,21 @@
 {
   "expo": {
-    "name": "Objetivos Dragón",
+    "name": "Drakostone",
     "slug": "objetivos-dragon",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/logo/icon.png",
     "scheme": "objetivosdragon",
     "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
     "android": {
-      "package": "com.sofisoler.objetivosdragon",
+      "package": "com.sofiasoler.drakostone",
       "permissions": [
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_NUTRITION"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/logo/adaptive-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -34,9 +29,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/logo/splash.png",
+          "imageWidth": 200
         }
       ],
       "@react-native-community/datetimepicker",
@@ -44,7 +39,7 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Objetivos Dragón usa tu calendario para mostrarte los eventos de la semana y ayudarte a organizarla."
+          "calendarPermission": "Drakostone usa tu calendario para mostrarte los eventos de la semana y ayudarte a organizarla."
         }
       ],
       [
@@ -55,7 +50,43 @@
           }
         }
       ],
-      "./plugins/withHealthConnectQueries"
+      "./plugins/withHealthConnectQueries",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "Hoy",
+              "label": "Drakostone — Hoy",
+              "minWidth": "180dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "description": "Tus objetivos y tareas de hoy",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "Porcentaje",
+              "label": "Drakostone — Progreso de hoy",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "description": "El porcentaje del día cumplido",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Drakostone usa el micrófono para que puedas dictarle a IA por voz.",
+          "speechRecognitionPermission": "Drakostone usa el reconocimiento de voz para transcribir lo que dictás.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -65,6 +96,11 @@
       "router": {},
       "eas": {
         "projectId": "27bf90fd-fd82-4f2e-a903-2dee87a92fca"
+      },
+      "googleCalendar": {
+        "androidClientIdEas": "584404816922-8iub6aasop6ifpardcvb02a6tkk6b55g.apps.googleusercontent.com",
+        "androidClientIdPlay": "584404816922-2at34pv5eq8m6hakki15vlfjnsjcv17p.apps.googleusercontent.com",
+        "webClientId": "584404816922-u9sqa8ds4r083uv5s1qepp4gr6d471eu.apps.googleusercontent.com"
       }
     },
     "owner": "sofi16044s-team"

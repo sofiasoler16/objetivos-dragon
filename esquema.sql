@@ -69,7 +69,9 @@ create table objetivo (
 
   -- coherencia según el tipo/frecuencia
   constraint chk_weekly_count check (
-    frecuencia_tipo <> 'WEEKLY_COUNT' or frecuencia_cantidad is not null
+    frecuencia_tipo <> 'WEEKLY_COUNT'
+    or frecuencia_cantidad is not null   -- veces por semana (BOOLEAN)
+    or meta_valor is not null            -- valor acumulado por semana (NUMERIC/DURATION)
   ),
   constraint chk_numeric_meta check (
     tipo <> 'NUMERIC' or meta_valor is not null
@@ -190,7 +192,6 @@ begin
 
   insert into categoria (id_usuario, nombre, icono, color) values
     (new.id, 'Fitness',     '🏋️', '#8B5CF6'),
-    (new.id, 'Universidad', '🎓', '#22C55E'),
     (new.id, 'Personal',    '🙂', '#6366F1'),
     (new.id, 'Salud',       '❤️', '#EF4444');
 

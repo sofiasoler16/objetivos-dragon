@@ -1,16 +1,18 @@
 -- ============================================================
---  FUNCIONES RPC — Pantalla "Progreso"  (Fase 8) 🔒
---  TODO se calcula desde `registro_objetivo` (la fuente de verdad),
+--  FUNCIONES RPC — Pantalla "Progreso"  (Fase 8 · + tareas en el %, Fase 2 mejoras) 🔒
+--  El cumplimiento de OBJETIVOS se calcula desde `registro_objetivo` (fuente de verdad),
 --  NUNCA del estado actual del objetivo.
 --
---  Crédito de un objetivo en un día (igual criterio que logic/hoy.ts):
---    · NUMERIC  → least(1, valor / meta)   (proporcional, tope 1)
---    · BOOLEAN  → 1 si completado, si no 0
---    · omitido  → queda FUERA (ni numerador ni denominador)
---  "Esperados" de un día = obligatorios (DAILY + SPECIFIC_DAYS que caen ese día),
---  activos y dentro de fecha_inicio/fecha_fin. WEEKLY_COUNT NO entra (no penaliza).
+--  Crédito de un ítem en un día (igual criterio que logic/hoy.ts):
+--    · OBJETIVO NUMERIC  → least(1, valor / meta)   (proporcional, tope 1)
+--    · OBJETIVO BOOLEAN  → 1 si completado, si no 0
+--    · omitido           → queda FUERA (ni numerador ni denominador)
+--    · TAREA que vence ese día → 1 si completada, si no 0 (cuenta como un ítem Sí/No)  ← NUEVO
+--  "Esperados" de un día = obligatorios (DAILY + SPECIFIC_DAYS que caen ese día) + tareas que
+--  vencen ese día. WEEKLY_COUNT NO entra (no penaliza).
 --
 --  Consistencia del período = sum(credito) / sum(esperados).
+--  progreso_por_objetivo NO incluye tareas (es el desglose por objetivo/categoría).
 --  SECURITY INVOKER (default): corre como el usuario → RLS + auth.uid().
 -- ============================================================
 
@@ -33,12 +35,11 @@ as $$
     select d::date as fecha
     from generate_series(p_desde, p_hasta, interval '1 day') d
   ),
-  celdas as (
+  obj_celdas as (
     select
       dias.fecha,
-      o.id_objetivo,
       case
-        when o.tipo = 'NUMERIC' and o.meta_valor > 0
+        when o.tipo in ('NUMERIC', 'DURATION') and o.meta_valor > 0
           then least(1, coalesce(r.valor, 0) / o.meta_valor)
         when coalesce(r.completado, false) then 1
         else 0
@@ -61,23 +62,38 @@ as $$
     left join registro_objetivo r
       on r.id_objetivo = o.id_objetivo and r.fecha = dias.fecha
     where not coalesce(r.omitido, false)
+  ),
+  tar_celdas as (
+    -- Las TAREAS que vencen ese día cuentan como un ítem Sí/No (hecha=1, pendiente=0).
+    select
+      t.fecha_limite::date                          as fecha,
+      (case when t.completada then 1 else 0 end)::numeric as credito
+    from tarea t
+    where t.id_usuario = auth.uid()
+      and t.fecha_limite is not null
+      and t.fecha_limite::date between p_desde and p_hasta
+  ),
+  todo as (
+    select fecha, credito from obj_celdas
+    union all
+    select fecha, credito from tar_celdas
   )
   select
     dias.fecha,
-    count(c.id_objetivo)::int                         as esperados,
-    coalesce(sum(c.credito), 0)::numeric              as credito,
+    count(x.credito)::int                    as esperados,
+    coalesce(sum(x.credito), 0)::numeric     as credito,
     coalesce(
-      round(sum(c.credito) / nullif(count(c.id_objetivo), 0) * 100),
+      round(sum(x.credito) / nullif(count(x.credito), 0) * 100),
       0
-    )                                                 as pct
+    )                                        as pct
   from dias
-  left join celdas c on c.fecha = dias.fecha
+  left join todo x on x.fecha = dias.fecha
   group by dias.fecha
   order by dias.fecha;
 $$;
 
 
--- Cumplimiento por objetivo en un rango (sección "por categoría" + desglose).
+-- Cumplimiento por objetivo en un rango (sección "por categoría" + desglose). SOLO objetivos.
 create or replace function progreso_por_objetivo(
   p_desde date,
   p_hasta date,
@@ -106,7 +122,7 @@ as $$
       o.id_categoria,
       o.tipo,
       case
-        when o.tipo = 'NUMERIC' and o.meta_valor > 0
+        when o.tipo in ('NUMERIC', 'DURATION') and o.meta_valor > 0
           then least(1, coalesce(r.valor, 0) / o.meta_valor)
         when coalesce(r.completado, false) then 1
         else 0
@@ -144,20 +160,24 @@ as $$
 $$;
 
 
--- Detalle de un día puntual (al tocar una celda del calendario).
+-- Detalle de un día puntual (al tocar una celda del calendario): objetivos + tareas del día.
+-- (Se dropea antes porque cambió las columnas de retorno; create or replace no permite eso.)
+drop function if exists detalle_dia(date);
+
 create or replace function detalle_dia(
   p_fecha date
 )
 returns table (
-  id_objetivo uuid,
-  nombre      text,
-  tipo        tipo_objetivo,
-  meta_valor  numeric,
-  unidad      text,
-  valor       numeric,
-  completado  boolean,
-  omitido     boolean,
-  credito     numeric
+  id_objetivo   uuid,
+  nombre        text,
+  tipo          tipo_objetivo,
+  meta_valor    numeric,
+  unidad        text,
+  valor         numeric,
+  completado    boolean,
+  omitido       boolean,
+  razon_omision text,
+  credito       numeric
 )
 language sql
 stable
@@ -171,9 +191,10 @@ as $$
     r.valor,
     coalesce(r.completado, false) as completado,
     coalesce(r.omitido, false)    as omitido,
+    r.razon_omision,
     case
       when coalesce(r.omitido, false) then 0
-      when o.tipo = 'NUMERIC' and o.meta_valor > 0
+      when o.tipo in ('NUMERIC', 'DURATION') and o.meta_valor > 0
         then least(1, coalesce(r.valor, 0) / o.meta_valor)
       when coalesce(r.completado, false) then 1
       else 0
@@ -194,5 +215,22 @@ as $$
           and od.dia_semana = extract(isodow from p_fecha)
       )
     )
-  order by o.hora_recordatorio nulls last, o.nombre;
+  union all
+  -- Tareas que vencen ese día (Sí/No). Se muestran junto a los objetivos del día.
+  select
+    t.id_tarea,
+    t.titulo,
+    'BOOLEAN'::tipo_objetivo,
+    null::numeric,
+    null::text,
+    null::numeric,
+    t.completada,
+    false,
+    null::text,
+    (case when t.completada then 1 else 0 end)::numeric
+  from tarea t
+  where t.id_usuario = auth.uid()
+    and t.fecha_limite is not null
+    and t.fecha_limite::date = p_fecha
+  order by nombre;
 $$;

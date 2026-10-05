@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createContext, type ReactNode, useContext } from 'react';
 import { useSession } from '@/components/session-provider';
 import { type Tema, TEMA_ORIGINAL } from '@/constants/theme';
+import { usePremium } from '@/hooks/usePremium';
 import { temaActivo } from '@/lib/data';
 import { temaAColores } from '@/logic/tema';
 
@@ -17,8 +18,10 @@ export function useTheme(): Tema {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
+  // Depende del Premium: si perdés Premium y tenías un tema premium, vuelve al Original.
+  const { esPremium } = usePremium();
   const { data } = useQuery({
-    queryKey: ['tema-activo', session?.user.id ?? null],
+    queryKey: ['tema-activo', session?.user.id ?? null, esPremium],
     queryFn: temaActivo,
   });
   const colores = data ? temaAColores(data) : TEMA_ORIGINAL;

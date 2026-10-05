@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -5,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,6 +24,7 @@ export default function RegistroScreen() {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mostrarPass, setMostrarPass] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -51,58 +54,73 @@ export default function RegistroScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <DragonMascot size={80} style={styles.dragon} />
-        <Text style={styles.title}>Crear cuenta</Text>
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}>
+          <DragonMascot size={80} style={styles.dragon} />
+          <Text style={styles.title}>Crear cuenta</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Nombre"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="words"
-          value={nombre}
-          onChangeText={setNombre}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Contraseña (mín. 6)"
-          placeholderTextColor={colors.textMuted}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Nombre"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="words"
+            value={nombre}
+            onChangeText={setNombre}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <View style={styles.passRow}>
+            <TextInput
+              style={styles.passInput}
+              placeholder="Contraseña (mín. 6)"
+              placeholderTextColor={colors.textMuted}
+              secureTextEntry={!mostrarPass}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <Pressable hitSlop={8} onPress={() => setMostrarPass((v) => !v)}>
+              <Ionicons
+                name={mostrarPass ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color={colors.textMuted}
+              />
+            </Pressable>
+          </View>
 
-        {error && <Text style={styles.error}>{error}</Text>}
-        {aviso && <Text style={styles.aviso}>{aviso}</Text>}
+          {error && <Text style={styles.error}>{error}</Text>}
+          {aviso && <Text style={styles.aviso}>{aviso}</Text>}
 
-        <Pressable
-          style={[styles.boton, cargando && styles.botonDeshabilitado]}
-          onPress={onSubmit}
-          disabled={cargando}>
-          {cargando ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.botonTexto}>Registrarme</Text>
-          )}
-        </Pressable>
+          <Pressable
+            style={[styles.boton, cargando && styles.botonDeshabilitado]}
+            onPress={onSubmit}
+            disabled={cargando}>
+            {cargando ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.botonTexto}>Registrarme</Text>
+            )}
+          </Pressable>
 
-        <View style={styles.linkFila}>
-          <Text style={styles.linkTexto}>¿Ya tenés cuenta? </Text>
-          <Link href="/login" style={styles.link}>
-            Ingresá
-          </Link>
-        </View>
+          <View style={styles.linkFila}>
+            <Text style={styles.linkTexto}>¿Ya tenés cuenta? </Text>
+            <Link href="/login" style={styles.link}>
+              Ingresá
+            </Link>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -111,7 +129,7 @@ export default function RegistroScreen() {
 const makeStyles = (colors: Tema) =>
   StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  container: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24, gap: 12 },
   dragon: { alignSelf: 'center', marginBottom: 4 },
   title: {
     fontSize: 28,
@@ -130,6 +148,16 @@ const makeStyles = (colors: Tema) =>
     fontSize: 16,
     color: colors.text,
   },
+  passRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+  },
+  passInput: { flex: 1, paddingVertical: 12, fontSize: 16, color: colors.text },
   error: { color: colors.red, fontSize: 14 },
   aviso: { color: colors.green700, fontSize: 14 },
   boton: {

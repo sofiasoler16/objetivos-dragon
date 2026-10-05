@@ -291,6 +291,7 @@ export type Database = {
         Row: {
           activo: boolean
           clave_preset: string | null
+          color: string | null
           descripcion: string | null
           fecha_creacion: string
           fecha_fin: string | null
@@ -301,6 +302,7 @@ export type Database = {
           hora_fin: string | null
           hora_inicio: string | null
           hora_recordatorio: string | null
+          icono: string | null
           id_categoria: string | null
           id_evento_calendario: string | null
           id_objetivo: string
@@ -313,6 +315,7 @@ export type Database = {
         Insert: {
           activo?: boolean
           clave_preset?: string | null
+          color?: string | null
           descripcion?: string | null
           fecha_creacion?: string
           fecha_fin?: string | null
@@ -323,6 +326,7 @@ export type Database = {
           hora_fin?: string | null
           hora_inicio?: string | null
           hora_recordatorio?: string | null
+          icono?: string | null
           id_categoria?: string | null
           id_evento_calendario?: string | null
           id_objetivo?: string
@@ -335,6 +339,7 @@ export type Database = {
         Update: {
           activo?: boolean
           clave_preset?: string | null
+          color?: string | null
           descripcion?: string | null
           fecha_creacion?: string
           fecha_fin?: string | null
@@ -345,6 +350,7 @@ export type Database = {
           hora_fin?: string | null
           hora_inicio?: string | null
           hora_recordatorio?: string | null
+          icono?: string | null
           id_categoria?: string | null
           id_evento_calendario?: string | null
           id_objetivo?: string
@@ -374,14 +380,20 @@ export type Database = {
       objetivo_dia: {
         Row: {
           dia_semana: number
+          hora_fin: string | null
+          hora_inicio: string | null
           id_objetivo: string
         }
         Insert: {
           dia_semana: number
+          hora_fin?: string | null
+          hora_inicio?: string | null
           id_objetivo: string
         }
         Update: {
           dia_semana?: number
+          hora_fin?: string | null
+          hora_inicio?: string | null
           id_objetivo?: string
         }
         Relationships: [
@@ -469,6 +481,7 @@ export type Database = {
           id_objetivo: string
           id_registro: string
           omitido: boolean
+          razon_omision: string | null
           valor: number | null
         }
         Insert: {
@@ -478,6 +491,7 @@ export type Database = {
           id_objetivo: string
           id_registro?: string
           omitido?: boolean
+          razon_omision?: string | null
           valor?: number | null
         }
         Update: {
@@ -487,6 +501,7 @@ export type Database = {
           id_objetivo?: string
           id_registro?: string
           omitido?: boolean
+          razon_omision?: string | null
           valor?: number | null
         }
         Relationships: [
@@ -554,6 +569,7 @@ export type Database = {
           id_evento_calendario: string | null
           id_tarea: string
           id_usuario: string
+          oculta: boolean
           prioridad: Database["public"]["Enums"]["prioridad_tarea"]
           titulo: string
         }
@@ -570,6 +586,7 @@ export type Database = {
           id_evento_calendario?: string | null
           id_tarea?: string
           id_usuario: string
+          oculta?: boolean
           prioridad?: Database["public"]["Enums"]["prioridad_tarea"]
           titulo: string
         }
@@ -586,6 +603,7 @@ export type Database = {
           id_evento_calendario?: string | null
           id_tarea?: string
           id_usuario?: string
+          oculta?: boolean
           prioridad?: Database["public"]["Enums"]["prioridad_tarea"]
           titulo?: string
         }
@@ -732,13 +750,14 @@ export type Database = {
           meta_valor: number
           nombre: string
           omitido: boolean
+          razon_omision: string | null
           tipo: Database["public"]["Enums"]["tipo_objetivo"]
           unidad: string
           valor: number
         }[]
       }
       esperados_hoy: {
-        Args: { p_tz?: string }
+        Args: { p_tz?: string; p_fecha?: string }
         Returns: {
           completado: boolean
           descripcion: string
@@ -791,7 +810,7 @@ export type Database = {
       }
       revocar_recompensa: { Args: { p_clave: string }; Returns: undefined }
       semanales_hoy: {
-        Args: { p_tz?: string }
+        Args: { p_tz?: string; p_fecha?: string }
         Returns: {
           completado_hoy: boolean
           hechos: number
@@ -799,6 +818,8 @@ export type Database = {
           id_objetivo: string
           meta: number
           nombre: string
+          tipo: Database["public"]["Enums"]["tipo_objetivo"]
+          unidad: string
         }[]
       }
     }
@@ -806,7 +827,7 @@ export type Database = {
       frecuencia_tipo: "DAILY" | "SPECIFIC_DAYS" | "WEEKLY_COUNT"
       fuente_datos: "MANUAL" | "HEALTH_CONNECT"
       prioridad_tarea: "BAJA" | "MEDIA" | "ALTA"
-      tipo_objetivo: "BOOLEAN" | "NUMERIC"
+      tipo_objetivo: "BOOLEAN" | "NUMERIC" | "DURATION"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -937,7 +958,7 @@ export const Constants = {
       frecuencia_tipo: ["DAILY", "SPECIFIC_DAYS", "WEEKLY_COUNT"],
       fuente_datos: ["MANUAL", "HEALTH_CONNECT"],
       prioridad_tarea: ["BAJA", "MEDIA", "ALTA"],
-      tipo_objetivo: ["BOOLEAN", "NUMERIC"],
+      tipo_objetivo: ["BOOLEAN", "NUMERIC", "DURATION"],
     },
   },
 } as const

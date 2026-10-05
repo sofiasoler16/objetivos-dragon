@@ -1,17 +1,41 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Modal, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DragonMascot } from '@/components/DragonMascot';
 import { useTheme } from '@/components/theme-provider';
 import { radius, spacing, type Tema } from '@/constants/theme';
 import type { EstadoDragon } from '@/logic/dragon';
 
 // Bandera en el teléfono para mostrar el onboarding una sola vez (subir vN al cambiarlo).
-const CLAVE = 'onboarding_visto_v1';
+// (Se quitó del tutorial la mención a los Widgets — el código del widget sigue, pero no se
+// promociona hasta que funcione bien. No se sube la versión: no hace falta re-mostrarlo.)
+const CLAVE = 'onboarding_visto_v2';
 
 /** Borra la marca para que el tutorial vuelva a aparecer la próxima vez que se abra la app. */
 export async function reiniciarOnboarding(): Promise<void> {
   await AsyncStorage.removeItem(CLAVE);
+}
+
+/** ¿El usuario ya vio el tutorial? (para no mostrar la promo Premium encima del onboarding). */
+export async function onboardingVisto(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(CLAVE)) != null;
+  } catch {
+    return false;
+  }
+}
+
+// Permite abrir el tutorial AHORA (sin esperar a reabrir la app), ej. desde Perfil.
+let emitirMostrar: (() => void) | null = null;
+export function mostrarOnboarding(): void {
+  emitirMostrar?.();
+}
+
+// Aviso de "se cerró el tutorial" → lo usa la promo Premium para aparecer justo después.
+const suscriptoresCierre = new Set<() => void>();
+export function onOnboardingCerrado(cb: () => void): () => void {
+  suscriptoresCierre.add(cb);
+  return () => suscriptoresCierre.delete(cb);
 }
 
 const PASOS: { expresion: EstadoDragon; titulo: string; texto: string }[] = [
@@ -43,7 +67,8 @@ const PASOS: { expresion: EstadoDragon; titulo: string; texto: string }[] = [
   {
     expresion: 'festejo',
     titulo: '5. Revisá tu Progreso',
-    texto: 'En Progreso ves tu consistencia, tu racha y tus logros. ¡Vamos a empezar! 🎉',
+    texto:
+      'En Progreso ves tu consistencia, tu racha y tus logros a lo largo del tiempo. ¡Vamos a empezar! 🎉',
   },
 ];
 
@@ -56,20 +81,45 @@ export function Onboarding() {
     AsyncStorage.getItem(CLAVE).then((v) => {
       if (!v) setVisible(true);
     });
+    // Abrir el tutorial al instante cuando se llama mostrarOnboarding() (ej. desde Perfil).
+    emitirMostrar = () => {
+      setPaso(0);
+      setVisible(true);
+    };
+    return () => {
+      emitirMostrar = null;
+    };
   }, []);
 
   function cerrar() {
     AsyncStorage.setItem(CLAVE, '1').catch(() => {});
     setVisible(false);
+    // Avisar a la promo Premium que el tutorial terminó (para aparecer justo después).
+    suscriptoresCierre.forEach((cb) => cb());
   }
+
+  const irAtras = () => setPaso((p) => Math.max(0, p - 1));
+  const irSiguiente = () => setPaso((p) => Math.min(PASOS.length - 1, p + 1));
+
+  // Deslizar para cambiar de paso (izquierda = siguiente, derecha = atrás).
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx <= -40) irSiguiente();
+        else if (g.dx >= 40) irAtras();
+      },
+    }),
+  ).current;
 
   const actual = PASOS[paso];
   const ultimo = paso === PASOS.length - 1;
+  const primero = paso === 0;
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={cerrar}>
       <View style={styles.overlay}>
-        <View style={styles.card}>
+        <View style={styles.card} {...pan.panHandlers}>
           <Pressable style={styles.saltar} onPress={cerrar} hitSlop={8}>
             <Text style={styles.saltarText}>Saltar</Text>
           </Pressable>
@@ -84,9 +134,18 @@ export function Onboarding() {
             ))}
           </View>
 
-          <Pressable style={styles.btn} onPress={() => (ultimo ? cerrar() : setPaso(paso + 1))}>
-            <Text style={styles.btnText}>{ultimo ? '¡Empezar!' : 'Siguiente'}</Text>
-          </Pressable>
+          <View style={styles.botones}>
+            <Pressable
+              style={[styles.btnAtras, primero && styles.btnAtrasOculto]}
+              onPress={irAtras}
+              disabled={primero}
+              hitSlop={8}>
+              <Text style={styles.btnAtrasText}>Atrás</Text>
+            </Pressable>
+            <Pressable style={styles.btn} onPress={() => (ultimo ? cerrar() : irSiguiente())}>
+              <Text style={styles.btnText}>{ultimo ? '¡Empezar!' : 'Siguiente'}</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -115,13 +174,16 @@ const makeStyles = (colors: Tema) =>
     dots: { flexDirection: 'row', gap: 7, marginTop: 4 },
     dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.track },
     dotOn: { backgroundColor: colors.purple, width: 20 },
+    botones: { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'stretch', marginTop: 6 },
+    btnAtras: { paddingVertical: 13, paddingHorizontal: 14 },
+    btnAtrasOculto: { opacity: 0 },
+    btnAtrasText: { color: colors.textMuted, fontWeight: '800', fontSize: 14 },
     btn: {
-      marginTop: 6,
+      flex: 1,
       backgroundColor: colors.purple,
       borderRadius: radius.pill,
       paddingVertical: 13,
       paddingHorizontal: 40,
-      alignSelf: 'stretch',
       alignItems: 'center',
     },
     btnText: { color: '#fff', fontWeight: '800', fontSize: 15 },

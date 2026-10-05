@@ -2,8 +2,9 @@
 // en logic/recordatorios.ts; acá solo se traduce y se habla con el SO.
 // Nota: en Expo Go (SDK 53+) el soporte es limitado; las notificaciones locales
 // programadas suelen andar, pero lo 100% garantizado es con un development build.
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import type { Disparador, Recordatorio } from '@/logic/recordatorios';
 
 let configurado = false;
@@ -23,9 +24,11 @@ export async function configurarNotificaciones(): Promise<void> {
   });
 
   if (Platform.OS === 'android') {
+    // Importancia ALTA para que lleguen a tiempo (heads-up). Ojo: Android congela la importancia de
+    // un canal ya creado → esto aplica del todo en una instalación nueva (rebuild).
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Recordatorios',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: Notifications.AndroidImportance.HIGH,
     });
   }
 }
@@ -36,6 +39,35 @@ export async function pedirPermisoNotificaciones(): Promise<boolean> {
   if (status === 'granted') return true;
   const solicitado = await Notifications.requestPermissionsAsync();
   return solicitado.status === 'granted';
+}
+
+/**
+ * Obtiene el token de push de Expo de este dispositivo (para notificaciones push del servidor,
+ * ej. "te asignaron una tarea"). Devuelve null si no hay permiso o no se pudo (best-effort).
+ * Solo funciona en un dispositivo real con development/production build (no en Expo Go / emulador).
+ */
+let ultimoPushToken: string | null = null;
+
+export async function obtenerPushToken(): Promise<string | null> {
+  if (ultimoPushToken) return ultimoPushToken;
+  try {
+    await configurarNotificaciones();
+    const permitido = await pedirPermisoNotificaciones();
+    if (!permitido) return null;
+    const projectId =
+      (Constants.expoConfig?.extra as any)?.eas?.projectId ??
+      (Constants as any).easConfig?.projectId;
+    const res = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    ultimoPushToken = res.data ?? null;
+    return ultimoPushToken;
+  } catch {
+    return null;
+  }
+}
+
+/** El token ya obtenido en esta sesión (sin ir a la red). Para limpiarlo al cerrar sesión. */
+export function pushTokenEnMemoria(): string | null {
+  return ultimoPushToken;
 }
 
 /** Traduce un disparador neutro al trigger de expo. Weekday de expo: 1=domingo..7=sábado. */
@@ -104,4 +136,22 @@ export async function notificacionDePrueba(): Promise<boolean> {
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, repeats: false },
   });
   return true;
+}
+
+/**
+ * Abre los ajustes de "optimización de batería" del sistema (Android), donde el usuario puede
+ * marcar la app como "Sin restricciones"/"Permitir siempre" para que los recordatorios lleguen a
+ * tiempo aunque el teléfono esté dormido (Doze). No requiere permiso especial.
+ */
+export async function abrirAjustesBateria(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
+  } catch {
+    try {
+      await Linking.openSettings(); // fallback: ajustes de la app
+    } catch {
+      /* nada más que hacer */
+    }
+  }
 }

@@ -43,6 +43,7 @@ export async function listarEstadoPresets(): Promise<PresetEstado[]> {
       porClave.set(objetivo.clave_preset, {
         ...objetivo,
         dias: objetivo_dia.map((d) => d.dia_semana).sort((a, b) => a - b),
+        horariosDia: [], // los presets son DAILY (sin hora por día)
       });
   }
 

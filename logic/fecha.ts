@@ -103,3 +103,10 @@ export function fechaLarga(iso: string): string {
   const [y, , d] = iso.split('-').map(Number);
   return `${d} de ${nombreMes(iso).toLowerCase()} de ${y}`;
 }
+
+const DIAS_SEMANA = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+/** '2026-08-15' → 'Lunes 15 de agosto de 2026' (con día de la semana). */
+export function fechaLargaConDia(iso: string): string {
+  return `${DIAS_SEMANA[diaSemanaISO(iso)]} ${fechaLarga(iso)}`;
+}

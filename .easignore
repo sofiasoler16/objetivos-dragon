@@ -1,0 +1,8 @@
+# Cosas que NO van al build (achican y aceleran la subida). No afectan la app.
+art-source/
+.git/
+*.aab
+*.apk
+*.sql
+*.md
+supabase/.temp/

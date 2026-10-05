@@ -28,6 +28,38 @@ export async function listarRegistros(
 }
 
 /**
+ * Guarda (o quita) un horario EXCEPCIONAL para un objetivo en una fecha concreta (item 2.d).
+ * Ej.: hoy hacés Coriza 15:30–18 en vez del 15–16 de siempre, sin cambiar la rutina.
+ * `hora_inicio`/`hora_fin` = 'HH:MM' (o null/null para volver al horario normal del objetivo).
+ * 🔒 Solo escribe la hora en el registro del día; NO toca completado/valor/omitido → no afecta el %.
+ */
+export async function setHorarioDia(
+  id_objetivo: string,
+  fecha: string,
+  hora_inicio: string | null,
+  hora_fin: string | null,
+): Promise<void> {
+  // `hora_inicio`/`hora_fin` son columnas nuevas (migración `agregar-horario-por-dia-registro.sql`),
+  // aún no están en los tipos generados → cast puntual.
+  const { error } = await (supabase.from('registro_objetivo') as any).upsert(
+    { id_objetivo, fecha, hora_inicio, hora_fin },
+    { onConflict: 'id_objetivo,fecha' },
+  );
+  if (error) throw error;
+}
+
+/** Todos los registros del usuario en un rango (para las grillas anuales por hábito). RLS → propios. */
+export async function registrosEnRango(desde: string, hasta: string): Promise<RegistroObjetivo[]> {
+  const { data, error } = await supabase
+    .from('registro_objetivo')
+    .select('*')
+    .gte('fecha', desde)
+    .lte('fecha', hasta);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
  * Upsert por `(id_objetivo, fecha)` (constraint UNIQUE). Actualiza solo las
  * columnas presentes en el payload, así marcar `completado` no pisa `valor`.
  */
@@ -54,6 +86,44 @@ export async function marcarObjetivoCompletado(
   if (completado) await recompensaSegura('objetivo', `obj:${id_objetivo}:${fecha}`);
   else await revocacionSegura(`obj:${id_objetivo}:${fecha}`); // desmarcó → devolver
   return registro;
+}
+
+/**
+ * Suma `delta` al valor de HOY del objetivo (para metas semanales acumuladas: leer 30 min/semana).
+ * NO marca `completado` ni da recompensa por día (la meta es semanal, no diaria). Piso en 0.
+ */
+export async function sumarValorHoy(
+  id_objetivo: string,
+  fecha: string,
+  delta: number,
+): Promise<RegistroObjetivo> {
+  const { data } = await supabase
+    .from('registro_objetivo')
+    .select('valor')
+    .eq('id_objetivo', id_objetivo)
+    .eq('fecha', fecha)
+    .maybeSingle();
+  const nuevo = Math.max(0, (data?.valor ?? 0) + delta);
+  return upsertRegistro({ id_objetivo, fecha, valor: nuevo });
+}
+
+/**
+ * Suma `delta` al valor de un objetivo NUMERIC/DURATION diario y marca completado/recompensa si
+ * llega a la meta (lee el valor actual y reusa `registrarValorNumerico`). Para el cronómetro.
+ */
+export async function sumarValorNumerico(
+  id_objetivo: string,
+  fecha: string,
+  delta: number,
+  meta: number | null,
+): Promise<RegistroObjetivo> {
+  const { data } = await supabase
+    .from('registro_objetivo')
+    .select('valor')
+    .eq('id_objetivo', id_objetivo)
+    .eq('fecha', fecha)
+    .maybeSingle();
+  return registrarValorNumerico(id_objetivo, fecha, (data?.valor ?? 0) + delta, meta);
 }
 
 /** Guarda el valor de un objetivo NUMERIC (ej: 1500 de agua) en una fecha. */
@@ -84,11 +154,20 @@ export async function registrarValorNumerico(
   return registro;
 }
 
-/** Marca el objetivo como omitido ese día: queda fuera del cálculo del %. */
+/**
+ * Marca el objetivo como omitido ese día: queda fuera del cálculo del %.
+ * `razon` (opcional) se guarda solo al omitir; al deshacer se limpia a NULL.
+ */
 export function omitirObjetivo(
   id_objetivo: string,
   fecha: string,
   omitido = true,
+  razon?: string | null,
 ): Promise<RegistroObjetivo> {
-  return upsertRegistro({ id_objetivo, fecha, omitido });
+  return upsertRegistro({
+    id_objetivo,
+    fecha,
+    omitido,
+    razon_omision: omitido ? (razon?.trim() || null) : null,
+  });
 }

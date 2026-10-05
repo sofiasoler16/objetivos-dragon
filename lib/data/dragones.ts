@@ -75,10 +75,14 @@ export async function temaActivo(): Promise<Tema | null> {
   if (!user) return null;
   const { data, error } = await supabase
     .from('preferencia_usuario')
-    .select('tema:id_tema_seleccionado(*)')
+    .select('tema:id_tema_seleccionado(*), dragon:id_dragon_seleccionado(premium_required)')
     .eq('id_usuario', user.id)
     .maybeSingle();
   if (error) return null;
+  // Si el dragón equipado es premium y ya no tenés Premium, volvé al tema Original.
+  const dRel = data?.dragon as { premium_required: boolean } | { premium_required: boolean }[] | null | undefined;
+  const dragon = Array.isArray(dRel) ? dRel[0] : dRel;
+  if (dragon?.premium_required && !(await esPremiumActivo())) return null; // null → ThemeProvider usa TEMA_ORIGINAL
   const t = data?.tema as Tema | Tema[] | null | undefined;
   return Array.isArray(t) ? (t[0] ?? null) : (t ?? null);
 }
@@ -118,16 +122,32 @@ export async function equiparDragon(idDragon: string, idTema: string | null): Pr
   if (error) throw error;
 }
 
-/** asset_key del dragón equipado (para el botón de la barra superior). Cae al Original. */
+/** ¿El usuario tiene Premium activo? (fuente de verdad: RPC es_premium / suscripcion). */
+async function esPremiumActivo(): Promise<boolean> {
+  const { data, error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ data: boolean | null; error: unknown }>)('es_premium');
+  return !error && data === true;
+}
+
+/**
+ * asset_key del dragón equipado (para el botón de la barra, el hero, las mascotas).
+ * Si el equipado es PREMIUM y ya NO tenés Premium, cae al Original (no lo perdés: la
+ * preferencia sigue guardada; al reactivar Premium vuelve solo). Cae al Original si no hay.
+ */
 export async function assetKeyEquipado(): Promise<string> {
   const uid = await requireUserId();
   const { data, error } = await supabase
     .from('preferencia_usuario')
-    .select('dragon:id_dragon_seleccionado(asset_key)')
+    .select('dragon:id_dragon_seleccionado(asset_key, premium_required)')
     .eq('id_usuario', uid)
     .maybeSingle();
   if (error) throw error;
-  const rel = data?.dragon as { asset_key: string } | { asset_key: string }[] | null | undefined;
-  const asset = Array.isArray(rel) ? rel[0]?.asset_key : rel?.asset_key;
-  return asset ?? 'dragon_original';
+  const rel = data?.dragon as
+    | { asset_key: string; premium_required: boolean }
+    | { asset_key: string; premium_required: boolean }[]
+    | null
+    | undefined;
+  const dragon = Array.isArray(rel) ? rel[0] : rel;
+  if (!dragon?.asset_key) return 'dragon_original';
+  if (dragon.premium_required && !(await esPremiumActivo())) return 'dragon_original';
+  return dragon.asset_key;
 }

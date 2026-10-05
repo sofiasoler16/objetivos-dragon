@@ -33,6 +33,10 @@ export type Tema = {
   accent2_100: string;
   accent2_700: string;
   neutral200: string;
+  /** Dragón Arcoíris: las tarjetas llevan un borde que rota por los colores del arcoíris. */
+  arcoiris?: boolean;
+  /** Color de borde para las tarjetas (ej. naranja neón del tema Programador). Sin esto = sin borde. */
+  cardBorde?: string;
 };
 
 export const TEMA_ORIGINAL: Tema = {

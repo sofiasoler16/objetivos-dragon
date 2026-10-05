@@ -19,7 +19,15 @@ export function progresoNivel(xpTotal: number): number {
   return (xpTotal % XP_POR_NIVEL) / XP_POR_NIVEL;
 }
 
-export type EstadoColeccion = 'equipado' | 'en_coleccion' | 'disponible' | 'bloqueado' | 'premium';
+// 'premium'          = requiere Premium y NO lo tenés → hay que conseguirlo.
+// 'premium_bloqueado' = lo tenés (es tuyo), pero sin Premium no lo podés usar → reactivar Premium.
+export type EstadoColeccion =
+  | 'equipado'
+  | 'en_coleccion'
+  | 'disponible'
+  | 'bloqueado'
+  | 'premium'
+  | 'premium_bloqueado';
 
 type ReglaLike = { rule_type: string; target_value: number | null } | null;
 type DragonLike = {
@@ -62,8 +70,10 @@ export function estadoColeccion(
   esPremium: boolean,
   logrosDesbloqueados?: Set<string>,
 ): EstadoColeccion {
+  // Premium primero: los dragones premium NO se pueden usar sin Premium, aunque los tengas.
+  // (La posesión NO se pierde: al reactivar Premium vuelven a estar disponibles/equipables.)
+  if (d.premium_required && !esPremium) return d.adquirido ? 'premium_bloqueado' : 'premium';
   if (d.adquirido) return d.equipado ? 'equipado' : 'en_coleccion';
-  if (d.premium_required && !esPremium) return 'premium';
   return requisitoCumplido(d.regla, stats, logrosDesbloqueados) ? 'disponible' : 'bloqueado';
 }
 
@@ -87,4 +97,13 @@ export function textoRequisito(regla: ReglaLike): string | null {
     default:
       return 'Requisito especial';
   }
+}
+
+/**
+ * Cómo se consigue un dragón, IGNORANDO Premium (monedas / nivel / logro / gratis). La condición
+ * de Premium se muestra aparte (corona + candado). Sirve para que CADA dragón diga su vía real.
+ */
+export function viaDeConseguir(d: { credit_cost: number; regla: ReglaLike }): string {
+  if (d.credit_cost > 0) return `${d.credit_cost} 🪙`;
+  return textoRequisito(d.regla) ?? 'Gratis';
 }

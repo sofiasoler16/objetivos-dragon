@@ -185,7 +185,7 @@ select 'Imparable', '7 días seguidos al 100%', 'RACHA', 7, null, 40, 25
 where not exists (select 1 from logro where nombre = 'Imparable');
 
 insert into logro (nombre, descripcion, rule_type, target_value, percentage_required, xp_reward, credit_reward)
-select 'Semana perfecta', 'Una semana con todos los días arriba del 80%', 'SEMANA_PERFECTA', null, 80, 50, 30
+select 'Semana muy buena', 'Una semana con todos los días arriba del 80%', 'SEMANA_PERFECTA', null, 80, 50, 30
 where not exists (select 1 from logro where nombre = 'Semana perfecta');
 
 

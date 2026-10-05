@@ -74,6 +74,26 @@ export async function completarTarea(
   return tarea;
 }
 
+/** Oculta una tarea (eliminada estando vencida): no se ve más, pero la fila queda para las stats. */
+export async function ocultarTarea(id_tarea: string): Promise<Tarea> {
+  return actualizarTarea(id_tarea, { oculta: true });
+}
+
+/** Reprograma una tarea a un nuevo día (vuelve a ser una tarea normal, pendiente, visible). */
+export async function reprogramarTarea(
+  id_tarea: string,
+  fecha_limite: string,
+  hora_limite?: string | null,
+): Promise<Tarea> {
+  return actualizarTarea(id_tarea, {
+    fecha_limite,
+    hora_limite: hora_limite ?? null,
+    oculta: false,
+    completada: false,
+    fecha_completada: null,
+  });
+}
+
 export async function eliminarTarea(id_tarea: string): Promise<void> {
   const { data } = await supabase
     .from('tarea')

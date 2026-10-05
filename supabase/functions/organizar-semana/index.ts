@@ -41,28 +41,42 @@ function systemPrompt(hoy: string, categorias: CategoriaCtx[], compromisos: Comp
 
 Hoy es ${hoy}. La semana empieza el LUNES. Los días se numeran ISO: 1=lunes, 2=martes, 3=miércoles, 4=jueves, 5=viernes, 6=sábado, 7=domingo.
 
-Si el pedido NO es para agendar objetivos/tareas (ej: preguntas, charla, pedidos fuera de tema), respondé con objetivos y tareas vacíos y un mensaje amable: "Solo puedo ayudarte a agendar objetivos y tareas 🐉".
+MUY IMPORTANTE — sé GENEROSO interpretando: casi cualquier pedido de HACER algo, IR a algún lado, EMPEZAR un hábito, entrenar, estudiar, una actividad, una cita o un pendiente ES agendable (objetivo o tarea). Ejemplos que SÍ debés agendar (nunca rechaces):
+- "quiero ir al gimnasio el jueves" (una vez) → TAREA (fecha_limite ese jueves).
+- "entregar el trabajo el jueves a las 2 de la tarde" → TAREA (fecha_limite ese jueves, hora_limite 14:00).
+- "ir al gimnasio los martes" (recurrente) → OBJETIVO SPECIFIC_DAYS (martes).
+- "estudiar 2 horas los lunes y miércoles" (recurrente con duración) → OBJETIVO con horario.
+- "comprar comida", "llamar al médico" → TAREA.
+SOLO respondé con objetivos y tareas vacíos y el mensaje "Solo puedo ayudarte a agendar objetivos y tareas 🐉" si el pedido NO tiene NADA que ver con organizar actividades/hábitos/pendientes (ej: "¿qué hora es?", "contame un chiste", "¿cómo estás?", preguntas de cultura general). Ante la duda, AGENDÁ (no rechaces).
 
 Cómo mapear:
-- Algo que se REPITE en el tiempo → un OBJETIVO. Elegí la frecuencia:
+
+⭐ TAREA (una vez) vs OBJETIVO (se repite) — la regla más importante, misma lógica que la app:
+- UNA SOLA VEZ ("este martes", "el jueves", "el jueves que viene", "mañana", "el 20 de agosto") → siempre una TAREA (un solo día). "fecha_limite" = ese día. Si mencionan una hora, esa hora va en "hora_limite" (es la hora de VENCIMIENTO, ej: "entregar el trabajo el jueves a las 2 de la tarde" → fecha_limite ese jueves, hora_limite 14:00). Las tareas NO se repiten y NO llevan bloque de horario ni evento de calendario.
+- SE REPITE ("los martes", "todos los martes", "cada martes", "todos los días", "N veces por semana") → un OBJETIVO recurrente (sin "fecha_fin", salvo que den una fecha de fin). El objetivo SÍ puede llevar horario (bloque → evento de calendario).
+
+- Objetivo recurrente → elegí la frecuencia:
   - "todos los días" → frecuencia_tipo DAILY.
-  - días fijos (lun/mié/vie) → SPECIFIC_DAYS con "dias" (números ISO). Si el usuario no fija los días pero sí una cantidad, VOS elegís una buena distribución (ej: 3 veces → lun, mié, vie).
+  - días fijos que se repiten (lun/mié/vie) → SPECIFIC_DAYS con "dias" (números ISO). Si el usuario no fija los días pero sí una cantidad, VOS elegís una buena distribución (ej: 3 veces → lun, mié, vie).
   - "N veces por semana" sin importar qué días → WEEKLY_COUNT con "frecuencia_cantidad".
-- Algo PUNTUAL con fecha (entregar algo, un trámite, rendir un examen) → una TAREA con "fecha_limite".
+- Algo PUNTUAL sin hora (entregar algo, un trámite, rendir un examen) → una TAREA con "fecha_limite" (y "hora_limite" si hay una hora de vencimiento). Las TAREAS son solo un vencimiento: NUNCA llevan bloque de horario ni se agendan como evento.
 - Tipo del objetivo:
-  - Si hay una cantidad medible por vez (ej: "2 horas", "30 minutos", "10 páginas") → tipo NUMERIC con "meta_valor" (número) y "unidad" (ej: "min", "horas", "páginas"). Convertí a la unidad más natural (2 horas → meta_valor 120, unidad "min").
-  - Si es hacer/no hacer → tipo BOOLEAN (meta_valor y unidad en null).
+  - Una DURACIÓN de tiempo ("2 horas", "30 minutos") NO es numérico: es tipo BOOLEAN (sí/no) y esa duración define el LARGO del bloque de horario (2 horas → un bloque de 2 h; 30 min → bloque de 30 min). meta_valor y unidad en null.
+  - Una CANTIDAD contable por vez ("10 páginas", "5 km", "8000 pasos", "2000 ml") → tipo NUMERIC con "meta_valor" (número) y "unidad" ("páginas", "km", "pasos", "ml").
+  - Hacer/no hacer sin cantidad → tipo BOOLEAN.
 - Si hay una fecha límite general (ej: un examen el 15/8), poné esa fecha en "fecha_fin" del objetivo relacionado, y además podés crear una TAREA para el evento (ej: "Rendir Materia" con fecha_limite).
 - Categorías: elegí "id_categoria" SOLO de esta lista (o null si ninguna encaja). NO inventes categorías ni ids.
 ${lista}
 
 HORARIOS (importante):
-- Si algo tiene una HORA o BLOQUE concreto (ej: "clase de 10:30 a 12", "gimnasio a las 18") → poné "hora_inicio" y "hora_fin" (HH:MM). Eso lo agenda como EVENTO en el calendario.
-- Si el usuario pide una DURACIÓN pero NO una hora (ej: "estudiar 2 horas"), ELEGÍ vos un bloque libre y coherente (mañana/tarde/noche razonable) y ponelo en "hora_inicio"/"hora_fin". EVITÁ pisar los compromisos de la lista de ABAJO. Ej: 2 horas → un bloque de 2 horas en un hueco libre.
-- IMPORTANTE al elegir horarios: revisá TODOS los días en que el objetivo cae (no solo el primero) contra los compromisos, y NO uses el mismo horario para dos objetivos/tareas que caen el mismo día. Buscá un hueco que sirva para todos sus días.
-- Si es algo GENERAL sin hora ni duración (ej: "ir a montar", "tomar agua") → dejá "hora_inicio" y "hora_fin" en null (es un objetivo del día, no un evento).
-- WEEKLY_COUNT nunca lleva horario (no tiene día fijo): hora_inicio/hora_fin siempre null.
-- Podés agendar en fechas FUTURAS (semanas próximas) usando "fecha_inicio"/"fecha_limite". No te limites a esta semana si el pedido lo amerita.
+- Si algo tiene una HORA o BLOQUE concreto, o una DURACIÓN ("clase de 10:30 a 12", "gimnasio a las 18", "estudiar 2 horas") → dale un horario. Eso lo agenda como EVENTO en el calendario.
+- DAILY (todos los días): usá "hora_inicio"/"hora_fin" (una sola hora).
+- SPECIFIC_DAYS (días fijos): usá "horarios_dia" = una entrada POR DÍA { "dia": N, "hora_inicio": "HH:MM", "hora_fin": "HH:MM" }. PODÉS y CONVIENE poner horas DISTINTAS por día si ayuda a evitar choques. Si el usuario no pide horas distintas, poné la misma en todos.
+- Si el usuario pide una DURACIÓN sin hora exacta ("2 horas"), ELEGÍ vos un bloque libre de esa duración (mañana/tarde/noche razonable) para cada día. EVITÁ pisar los compromisos de ABAJO.
+- Revisá CADA día del objetivo (no solo el primero) contra los compromisos, y NO uses el mismo horario para dos objetivos/tareas que caen el mismo día.
+- Algo GENERAL sin hora ni duración ("ir a montar", "tomar agua") → sin horario (hora_inicio/hora_fin null y horarios_dia null): es objetivo del día, no evento.
+- WEEKLY_COUNT nunca lleva horario (no tiene día fijo).
+- Podés agendar en fechas FUTURAS usando "fecha_inicio"/"fecha_limite". No te limites a esta semana.
 
 Compromisos YA ocupados (NO los pises al elegir horarios):
 ${ocupado}
@@ -86,8 +100,9 @@ Respondé ÚNICAMENTE con un objeto JSON válido (sin texto extra, sin \`\`\`) c
       "id_categoria": "string o null",
       "fecha_inicio": "YYYY-MM-DD o null",
       "fecha_fin": "YYYY-MM-DD o null",
-      "hora_inicio": "HH:MM o null",
-      "hora_fin": "HH:MM o null"
+      "hora_inicio": "HH:MM o null (solo DAILY)",
+      "hora_fin": "HH:MM o null (solo DAILY)",
+      "horarios_dia": [ { "dia": 1, "hora_inicio": "HH:MM", "hora_fin": "HH:MM" } ]
     }
   ],
   "tareas": [
@@ -97,9 +112,7 @@ Respondé ÚNICAMENTE con un objeto JSON válido (sin texto extra, sin \`\`\`) c
       "prioridad": "BAJA" | "MEDIA" | "ALTA",
       "id_categoria": "string o null",
       "fecha_limite": "YYYY-MM-DD o null",
-      "hora_limite": "HH:MM o null",
-      "hora_inicio": "HH:MM o null",
-      "hora_fin": "HH:MM o null"
+      "hora_limite": "HH:MM o null"
     }
   ]
 }`;
@@ -147,6 +160,15 @@ Deno.serve(async (req) => {
     if (!texto || typeof texto !== 'string' || !texto.trim())
       return json(vacia('Contame qué querés agendar 🐉'));
 
+    // 🔒 Límite mensual SERVER-SIDE: consume 1 uso (o rechaza si llegó al tope) ANTES de llamar al
+    // modelo, así protege los créditos de la API. Cuenta por mes calendario. Si la RPC no está (aún
+    // sin migrar), `usoErr` → no bloqueamos (falla abierto para no romper la IA).
+    const { data: uso, error: usoErr } = await supabase.rpc('consumir_ia');
+    const filaUso = Array.isArray(uso) ? uso[0] : uso;
+    if (!usoErr && filaUso && filaUso.permitido === false)
+      // 200 con marca: así el cliente lo lee de `data` (invoke solo pone `error` en fallos de red/5xx).
+      return json({ error: 'limite', usados: filaUso.usados, limite: filaUso.limite });
+
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -157,6 +179,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 1600,
+        temperature: 0.2, // baja aleatoriedad → respuestas consistentes (mismo pedido, mismo resultado)
         system: systemPrompt(
           typeof hoy === 'string' ? hoy : '',
           Array.isArray(categorias) ? categorias : [],

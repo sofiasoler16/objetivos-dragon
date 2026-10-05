@@ -81,7 +81,8 @@ export function DateTimeField({
           <DateTimePicker
             value={base}
             mode={mode}
-            display="spinner"
+            // Fecha → calendario (muestra el día de la semana en la grilla); hora → rueda.
+            display={mode === 'date' ? 'calendar' : 'spinner'}
             minimumDate={minimumDate}
             onChange={alCambiarAndroid}
           />

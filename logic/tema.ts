@@ -39,6 +39,15 @@ function luminancia(hex: string): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
+// Color del borde de tarjeta según el tema (undefined = sin borde de color).
+//  · Programador / Gimnasio / Fénix → el color primario del tema.
+//  · Tormenta → el acento (amarillo rayo), que resalta sobre el fondo oscuro.
+function bordePorTema(db: TemaDB, primario: string): string | undefined {
+  if (db.nombre === 'Programador' || db.nombre === 'Gimnasio' || db.nombre === 'Fénix') return primario;
+  if (db.nombre === 'Tormenta') return db.accent_color;
+  return undefined;
+}
+
 export function temaAColores(db: TemaDB): Tema {
   const P = db.primary_color;
   const S = db.secondary_color;
@@ -87,5 +96,10 @@ export function temaAColores(db: TemaDB): Tema {
     accent2_100: chip(SU),
     accent2_700: fuerte(SU),
     neutral200: oscuro ? mix(SUR, '#ffffff', 0.14) : tint(P, 0.84),
+    // Efectos especiales por tema (detectados por nombre):
+    //  · Arcoíris → tarjetas con borde que rota por el arcoíris.
+    //  · Los demás → borde de tarjeta de un color fijo (ver bordePorTema).
+    arcoiris: db.nombre === 'Arcoíris',
+    cardBorde: bordePorTema(db, P),
   };
 }

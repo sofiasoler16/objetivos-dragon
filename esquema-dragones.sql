@@ -314,7 +314,6 @@ begin
 
   insert into categoria (id_usuario, nombre, icono, color) values
     (new.id, 'Fitness',     '🏋️', '#8B5CF6'),
-    (new.id, 'Universidad', '🎓', '#22C55E'),
     (new.id, 'Personal',    '🙂', '#6366F1'),
     (new.id, 'Salud',       '❤️', '#EF4444');
 

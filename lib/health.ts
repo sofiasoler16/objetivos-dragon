@@ -22,11 +22,17 @@ const tieneRecord = (
   rt: string,
 ) => concedidos.some((p) => p.recordType === rt && p.accessType === 'read');
 
-/** Rango de HOY: medianoche local → ahora (zona horaria del dispositivo). */
-function rangoHoy() {
-  const ahora = new Date();
-  const inicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 0, 0, 0, 0);
-  return { operator: 'between' as const, startTime: inicio.toISOString(), endTime: ahora.toISOString() };
+/**
+ * Rango de un día (yyyy-mm-dd, hora local): medianoche → medianoche del día siguiente, pero sin
+ * pasar de "ahora" (no se lee el futuro). Sirve tanto para HOY como para días anteriores
+ * (Health Connect guarda el histórico, así que se pueden traer días pasados).
+ */
+function rangoDia(fechaISO: string) {
+  const [y, m, d] = fechaISO.split('-').map(Number);
+  const inicio = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const finDia = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+  const fin = new Date(Math.min(finDia.getTime(), Date.now()));
+  return { operator: 'between' as const, startTime: inicio.toISOString(), endTime: fin.toISOString() };
 }
 
 /** ¿Health Connect está disponible en este dispositivo? (no lanza) */
@@ -78,18 +84,18 @@ export async function estadoHealthConnect(): Promise<EstadoHealthConnect> {
   return { disponible: true, conectado: tieneRecord(g, 'Steps') || tieneRecord(g, 'Nutrition') };
 }
 
-/** Pasos agregados de HOY. */
-export async function leerPasosDeHoy(): Promise<number> {
-  const res = await aggregateRecord({ recordType: 'Steps', timeRangeFilter: rangoHoy() });
+/** Pasos agregados de un día (yyyy-mm-dd). */
+export async function leerPasosDeDia(fechaISO: string): Promise<number> {
+  const res = await aggregateRecord({ recordType: 'Steps', timeRangeFilter: rangoDia(fechaISO) });
   return res.COUNT_TOTAL ?? 0;
 }
 
 /** Una comida registrada en Health Connect (SnapCalorie, Samsung Health, etc.). */
 export type ComidaHC = { nombre: string | null; kcal: number; mealType: number; hora: string };
 
-/** Comidas de HOY (nombre + calorías + tipo de comida), ordenadas por hora. */
-export async function leerComidasDeHoy(): Promise<ComidaHC[]> {
-  const res = await readRecords('Nutrition', { timeRangeFilter: rangoHoy() });
+/** Comidas de un día (yyyy-mm-dd): nombre + calorías + tipo de comida, ordenadas por hora. */
+export async function leerComidasDeDia(fechaISO: string): Promise<ComidaHC[]> {
+  const res = await readRecords('Nutrition', { timeRangeFilter: rangoDia(fechaISO) });
   return res.records
     .map((r) => ({
       nombre: r.name ?? null,
@@ -100,8 +106,8 @@ export async function leerComidasDeHoy(): Promise<ComidaHC[]> {
     .sort((a, b) => a.hora.localeCompare(b.hora));
 }
 
-/** Calorías totales de HOY (suma de las comidas). */
-export async function leerCaloriasDeHoy(): Promise<number> {
-  const comidas = await leerComidasDeHoy();
+/** Calorías totales de un día (suma de las comidas). */
+export async function leerCaloriasDeDia(fechaISO: string): Promise<number> {
+  const comidas = await leerComidasDeDia(fechaISO);
   return Math.round(comidas.reduce((s, c) => s + c.kcal, 0));
 }

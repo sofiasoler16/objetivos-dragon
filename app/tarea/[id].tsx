@@ -26,7 +26,7 @@ import {
   type NuevaTarea,
   obtenerTarea,
 } from '@/lib/data';
-import { dateAHora, dateAISO, fechaLarga, horaADate, isoADate } from '@/logic/fecha';
+import { dateAHora, dateAISO, fechaLargaConDia, horaADate, isoADate } from '@/logic/fecha';
 
 type Prioridad = 'BAJA' | 'MEDIA' | 'ALTA';
 
@@ -116,7 +116,7 @@ export default function TareaFormScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.topRow}>
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Ionicons name="chevron-back" size={22} color={colors.text} />
@@ -130,7 +130,7 @@ export default function TareaFormScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Título</Text>
-        <TextInput style={styles.input} placeholder="Ej: Entregar TP de auditoría" placeholderTextColor={colors.textMuted} value={titulo} onChangeText={setTitulo} />
+        <TextInput style={styles.input} placeholder="Ej: Ir al supermercado" placeholderTextColor={colors.textMuted} value={titulo} onChangeText={setTitulo} />
 
         <Text style={styles.label}>Descripción (opcional)</Text>
         <TextInput style={styles.input} placeholder="Nota corta" placeholderTextColor={colors.textMuted} value={descripcion} onChangeText={setDescripcion} />
@@ -150,6 +150,10 @@ export default function TareaFormScreen() {
               </Text>
             </Pressable>
           ))}
+          <Pressable style={styles.chipNueva} onPress={() => router.push('/categorias')}>
+            <Ionicons name="add" size={14} color={colors.purple} />
+            <Text style={styles.chipNuevaText}>Nueva</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.label}>Prioridad</Text>
@@ -171,7 +175,7 @@ export default function TareaFormScreen() {
           onClear={() => setFechaLimite('')}
           placeholder="Sin fecha límite"
           minimumDate={new Date()}
-          formato={(d) => fechaLarga(dateAISO(d))}
+          formato={(d) => fechaLargaConDia(dateAISO(d))}
         />
 
         <Text style={styles.label}>Hora (opcional)</Text>
@@ -231,6 +235,19 @@ const makeStyles = (colors: Tema) =>
     color: colors.text,
   },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chipNueva: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.purple,
+    borderStyle: 'dashed',
+    backgroundColor: colors.surface,
+  },
+  chipNuevaText: { fontSize: 13, color: colors.purple, fontWeight: '800' },
   chip: {
     paddingVertical: 8,
     paddingHorizontal: 14,

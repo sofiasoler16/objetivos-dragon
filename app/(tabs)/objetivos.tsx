@@ -1,33 +1,40 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OrganizarSemanaModal } from '@/components/OrganizarSemanaModal';
 import { DragonButton } from '@/components/DragonButton';
 import { DragonMascot } from '@/components/DragonMascot';
 import { ProfileButton } from '@/components/ProfileButton';
 import { StatsPills } from '@/components/StatsPills';
 import { useTheme } from '@/components/theme-provider';
 import { useDragonEquipado } from '@/hooks/useDragonEquipado';
+import { usePremium } from '@/hooks/usePremium';
 import { useRevisarLogros } from '@/hooks/useRevisarLogros';
 import { Card } from '@/components/ui/Card';
+import { PremiumBadge } from '@/components/ui/PremiumBadge';
 import { EstadoMensaje } from '@/components/ui/EstadoMensaje';
 import { SpeechBubble } from '@/components/ui/SpeechBubble';
 import { spacing } from '@/constants/theme';
 import {
   activarPreset,
   type ClavePreset,
-  completarTarea,
   desactivarPreset,
+  guardarTarea,
   listarCategorias,
   listarEstadoPresets,
   listarObjetivosConDias,
   listarTareas,
+  type Tarea,
 } from '@/lib/data';
 import { type Tema } from '@/constants/theme';
+import { iconoObjetivo } from '@/logic/iconos';
 import { resumenFrecuencia } from '@/logic/objetivos';
 import { clavePresetDe } from '@/logic/presets';
-import { resumenTarea } from '@/logic/tareas';
+import { resumenTarea, tareaOculta } from '@/logic/tareas';
+import { hoyISO } from '@/logic/fecha';
 
 export default function ObjetivosScreen() {
   const queryClient = useQueryClient();
@@ -35,6 +42,8 @@ export default function ObjetivosScreen() {
   const colors = useTheme();
   const styles = makeStyles(colors);
   const assetKeyDragon = useDragonEquipado();
+  const { esPremium } = usePremium();
+  const [iaAbierta, setIaAbierta] = useState(false);
 
   const {
     data: objetivos,
@@ -54,9 +63,15 @@ export default function ObjetivosScreen() {
   } = useQuery({ queryKey: ['tareas'], queryFn: () => listarTareas() });
   const { data: presets } = useQuery({ queryKey: ['presets'], queryFn: listarEstadoPresets });
   const catMap = new Map((categorias ?? []).map((c) => [c.id_categoria, c]));
+  // Tareas visibles: se ocultan las completadas/vencidas hace más de 7 días y las eliminadas.
+  const tareasVisibles = (tareas ?? []).filter((t) => !tareaOculta(t, hoyISO()));
 
   // Los presets activos son objetivos reales: se muestran en "Sugeridos", no en la lista común.
-  const recurrentes = objetivos?.filter((o) => !clavePresetDe(o));
+  // Además ocultamos los "terminados" (fecha_fin < hoy): son los que se dejaron de hacer de hoy en
+  // adelante — no se generan más, pero su historial sigue contando en Progreso.
+  const recurrentes = objetivos?.filter(
+    (o) => !clavePresetDe(o) && !(o.fecha_fin && o.fecha_fin.slice(0, 10) < hoyISO()),
+  );
 
   const togglePreset = useMutation({
     mutationFn: async ({ clave, activar }: { clave: ClavePreset; activar: boolean }) => {
@@ -71,12 +86,40 @@ export default function ObjetivosScreen() {
 
   const completar = useMutation({
     mutationFn: ({ id, completada, prioridad }: { id: string; completada: boolean; prioridad: 'BAJA' | 'MEDIA' | 'ALTA' }) =>
-      completarTarea(id, completada, prioridad),
-    onSuccess: (_r, v) => {
-      queryClient.invalidateQueries({ queryKey: ['tareas'] });
-      queryClient.invalidateQueries({ queryKey: ['perfil-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['coleccion'] });
-      if (v.completada) revisarLogros();
+      guardarTarea(id, completada, prioridad),
+    onMutate: async ({ id, completada }) => {
+      // Optimista: la tilde cambia al instante (también offline).
+      await queryClient.cancelQueries({ queryKey: ['tareas'] });
+      const prev = queryClient.getQueryData<Tarea[]>(['tareas']);
+      queryClient.setQueryData<Tarea[]>(['tareas'], (old) =>
+        (old ?? []).map((t) =>
+          t.id_tarea === id
+            ? { ...t, completada, fecha_completada: completada ? new Date().toISOString() : null }
+            : t,
+        ),
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['tareas'], ctx.prev);
+      Alert.alert('No se pudo guardar', 'Intentá de nuevo.');
+    },
+    onSuccess: (res, v) => {
+      if (res === 'ok' && v.completada) revisarLogros();
+    },
+    onSettled: () => {
+      // Las tareas suman al % del día → refrescar Hoy y Progreso además de la lista.
+      for (const k of [
+        ['tareas'],
+        ['esperados-hoy'],
+        ['progreso-dias'],
+        ['progreso-mes'],
+        ['detalle-dia'],
+        ['perfil-stats'],
+        ['coleccion'],
+        ['pendientes'],
+      ])
+        queryClient.invalidateQueries({ queryKey: k });
     },
   });
 
@@ -101,23 +144,39 @@ export default function ObjetivosScreen() {
           </View>
         </View>
 
-        {/* Mi semana (calendario + IA) */}
-        <Pressable style={styles.miSemana} onPress={() => router.push('/agenda')}>
+        {/* Mi semana (calendario + IA) — feature Premium */}
+        <Pressable
+          style={styles.miSemana}
+          onPress={() => router.push(esPremium ? '/agenda' : '/premium')}>
           <View style={styles.miSemanaIcon}>
             <Ionicons name="calendar-outline" size={22} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.miSemanaTitulo}>Mi semana</Text>
-            <Text style={styles.miSemanaSub}>Tus eventos y objetivos de la semana</Text>
+            <Text style={styles.miSemanaSub}>
+              {esPremium ? 'Tus eventos y objetivos de la semana' : 'Organizá tu semana con IA'}
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#fff" />
+          <PremiumBadge bloqueado={!esPremium} tone="light" />
+        </Pressable>
+
+        {/* Acceso directo a la IA (sin entrar a Mi semana). Premium. */}
+        <Pressable
+          style={styles.iaDirecto}
+          onPress={() => (esPremium ? setIaAbierta(true) : router.push('/premium'))}>
+          <Ionicons name="sparkles" size={17} color={colors.purple} />
+          <Text style={styles.iaDirectoText}>Organizá tu semana con IA</Text>
+          {!esPremium && <PremiumBadge bloqueado tone="default" />}
         </Pressable>
 
         {/* Objetivos */}
         <View style={styles.sectionHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Ionicons name="refresh-outline" size={18} color={colors.purple} />
-            <Text style={styles.h2}>Objetivos</Text>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="refresh-outline" size={18} color={colors.purple} />
+              <Text style={styles.h2}>Objetivos</Text>
+            </View>
+            <Text style={styles.seccionSub}>🔁 Un hábito que se repite</Text>
           </View>
           <Pressable style={styles.nuevoBtn} onPress={() => router.push('/objetivo/nuevo')}>
             <Ionicons name="add" size={16} color="#fff" />
@@ -146,7 +205,7 @@ export default function ObjetivosScreen() {
             return (
               <Card key={o.id_objetivo} style={styles.listRow}>
                 <View style={[styles.badge, { backgroundColor: (cat?.color ?? colors.purple) + '22' }]}>
-                  <Text style={{ fontSize: 20 }}>{cat?.icono ?? '🎯'}</Text>
+                  <Text style={{ fontSize: 20 }}>{iconoObjetivo(o, cat?.icono)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemTitle}>{o.nombre}</Text>
@@ -201,9 +260,12 @@ export default function ObjetivosScreen() {
 
         {/* Tareas */}
         <View style={styles.sectionHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Ionicons name="document-text-outline" size={18} color={colors.purple} />
-            <Text style={styles.h2}>Tareas</Text>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="document-text-outline" size={18} color={colors.purple} />
+              <Text style={styles.h2}>Tareas</Text>
+            </View>
+            <Text style={styles.seccionSub}>📌 Algo puntual, para un solo día</Text>
           </View>
           <Pressable style={styles.nuevoBtn} onPress={() => router.push('/tarea/nuevo')}>
             <Ionicons name="add" size={16} color="#fff" />
@@ -219,11 +281,11 @@ export default function ObjetivosScreen() {
             onReintentar={() => refetchTareas()}
           />
         )}
-        {!cargandoTareas && !errorTareas && tareas?.length === 0 && (
+        {!cargandoTareas && !errorTareas && tareasVisibles.length === 0 && (
           <Text style={styles.vacio}>No tenés tareas. Tocá “Nueva” para agregar una.</Text>
         )}
         <View style={{ gap: 10 }}>
-          {tareas?.map((t) => (
+          {tareasVisibles.map((t) => (
             <Card key={t.id_tarea} style={styles.listRow}>
               <Pressable
                 hitSlop={6}
@@ -245,6 +307,8 @@ export default function ObjetivosScreen() {
           ))}
         </View>
       </ScrollView>
+
+      <OrganizarSemanaModal visible={iaAbierta} onClose={() => setIaAbierta(false)} />
     </SafeAreaView>
   );
 }
@@ -258,6 +322,7 @@ const makeStyles = (colors: Tema) =>
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
   h1: { fontSize: 22, fontWeight: '800', color: colors.text },
   h2: { fontSize: 18, fontWeight: '800', color: colors.text },
+  seccionSub: { fontSize: 12, color: colors.textMuted, marginTop: 2, marginLeft: 26 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -297,6 +362,19 @@ const makeStyles = (colors: Tema) =>
   },
   miSemanaTitulo: { color: '#fff', fontWeight: '800', fontSize: 16 },
   miSemanaSub: { color: '#ffffffcc', fontSize: 12.5, marginTop: 1 },
+  iaDirecto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.purple,
+    borderRadius: 999,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+  },
+  iaDirectoText: { flex: 1, color: colors.purple, fontWeight: '800', fontSize: 14 },
   itemTitle: { fontSize: 14.5, color: colors.text },
   itemDone: { textDecorationLine: 'line-through', opacity: 0.5 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -5,7 +5,9 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DragonMascot } from '@/components/DragonMascot';
 import { useTheme } from '@/components/theme-provider';
+import { usePremium } from '@/hooks/usePremium';
 import { Card } from '@/components/ui/Card';
+import { PremiumBadge } from '@/components/ui/PremiumBadge';
 import { EstadoMensaje } from '@/components/ui/EstadoMensaje';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { radius, spacing, type Tema } from '@/constants/theme';
@@ -23,6 +25,7 @@ import {
   nivelDesdeXp,
   progresoNivel,
   textoRequisito,
+  viaDeConseguir,
   XP_POR_NIVEL,
   xpEnNivel,
 } from '@/logic/dragones';
@@ -31,6 +34,7 @@ export default function MiDragonScreen() {
   const colors = useTheme();
   const styles = makeStyles(colors);
   const queryClient = useQueryClient();
+  const { esPremium } = usePremium();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['coleccion'],
     queryFn: cargarColeccion,
@@ -74,19 +78,25 @@ export default function MiDragonScreen() {
       Alert.alert('Te faltan monedas', `Necesitás ${d.credit_cost - stats.creditos} 🪙 más para el dragón ${d.nombre}.`);
       return;
     }
-    Alert.alert('Comprar dragón', `¿Comprar ${d.nombre} por ${d.credit_cost} 🪙?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Comprar', onPress: () => comprar.mutate(d) },
-    ]);
+    const gratis = d.credit_cost === 0;
+    Alert.alert(
+      gratis ? 'Obtener dragón' : 'Comprar dragón',
+      gratis ? `¿Sumar ${d.nombre} a tu colección?` : `¿Comprar ${d.nombre} por ${d.credit_cost} 🪙?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: gratis ? 'Obtener' : 'Comprar', onPress: () => comprar.mutate(d) },
+      ],
+    );
   };
   const onEquipar = (d: DragonColeccion) => equipar.mutate(d);
-  // esPremium: por ahora false (la suscripción llega más adelante).
   const conEstado = dragones.map((d) => ({
     d,
-    estado: estadoColeccion(d, stats, false, logrosDesbloqueados),
+    estado: estadoColeccion(d, stats, esPremium, logrosDesbloqueados),
   }));
 
-  const coleccion = conEstado.filter((x) => x.estado === 'equipado' || x.estado === 'en_coleccion');
+  const coleccion = conEstado.filter(
+    (x) => x.estado === 'equipado' || x.estado === 'en_coleccion' || x.estado === 'premium_bloqueado',
+  );
   // el equipado primero
   coleccion.sort((a) => (a.estado === 'equipado' ? -1 : 1));
   const disponibles = conEstado.filter((x) => x.estado === 'disponible');
@@ -94,7 +104,7 @@ export default function MiDragonScreen() {
   const premium = conEstado.filter((x) => x.estado === 'premium');
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} hitSlop={8}>
@@ -181,6 +191,7 @@ function LogroCard({ logro }: { logro: LogroConEstado }) {
         <Text style={styles.logroRecompensa}>
           {ok ? '✓ Desbloqueado · ' : 'Recompensa: '}
           +{logro.xp_reward} XP · +{logro.credit_reward} 🪙
+          {logro.dragon_nombre ? ` · Dragón ${logro.dragon_nombre} 🐉` : ''}
         </Text>
       </View>
     </Card>
@@ -231,7 +242,18 @@ function DragonCard({
   const styles = makeStyles(colors);
   return (
     <Card style={styles.dragonCard}>
-      <View style={[styles.dragonArt, estado === 'bloqueado' && { opacity: 0.5 }]}>
+      {dragon.premium_required && (
+        <PremiumBadge
+          bloqueado={estado === 'premium' || estado === 'premium_bloqueado'}
+          style={styles.premiumBadgePos}
+        />
+      )}
+      <View
+        style={[
+          styles.dragonArt,
+          (estado === 'bloqueado' || estado === 'premium_bloqueado') && { opacity: 0.5 },
+        ]}>
+
         <DragonMascot assetKey={dragon.asset_key} size={72} />
       </View>
       <View style={{ flex: 1, gap: 3 }}>
@@ -267,14 +289,19 @@ function accion(
         </Pressable>
       );
     case 'disponible': {
+      const gratis = dragon.credit_cost === 0;
       const alcanza = h.creditos >= dragon.credit_cost;
       return (
         <Pressable
           style={[styles.btnPrimario, !alcanza && styles.btnDeshabilitado]}
           onPress={() => h.onComprar(dragon)}>
-          <Ionicons name="cart-outline" size={15} color="#fff" />
+          <Ionicons name={gratis ? 'gift-outline' : 'cart-outline'} size={15} color="#fff" />
           <Text style={styles.btnPrimarioText}>
-            {alcanza ? `Comprar · ${dragon.credit_cost} 🪙` : `Faltan ${dragon.credit_cost - h.creditos} 🪙`}
+            {gratis
+              ? dragon.premium_required
+                ? 'Reclamar'
+                : 'Obtener'
+              : `Comprar · ${dragon.credit_cost} 🪙`}
           </Text>
         </Pressable>
       );
@@ -286,8 +313,34 @@ function accion(
           <Text style={styles.muted}>Se desbloquea con: {textoRequisito(dragon.regla) ?? '—'}</Text>
         </View>
       );
-    case 'premium':
-      return <Text style={styles.muted}>Requiere Premium 👑</Text>;
+    case 'premium': {
+      // Premium-only y NO tenés Premium: mostramos CÓMO se consigue (moneda/nivel/logro/gratis) +
+      // que necesita Premium (candado). No decimos "gratis con Premium" salvo que de verdad lo sea.
+      const via = viaDeConseguir(dragon);
+      const textoVia = via === 'Gratis' ? 'Gratis con Premium 👑' : `Con Premium 👑 + ${via}`;
+      return (
+        <View style={{ gap: 6, alignItems: 'flex-start' }}>
+          <View style={styles.reqRow}>
+            <Ionicons name="lock-closed" size={13} color={colors.textMuted} />
+            <Text style={styles.muted}>{textoVia}</Text>
+          </View>
+          <Pressable style={styles.btnPrimario} onPress={() => router.push('/premium')}>
+            <Text style={{ fontSize: 12 }}>👑</Text>
+            <Text style={styles.btnPrimarioText}>Activar Premium</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    case 'premium_bloqueado':
+      return (
+        <View style={{ gap: 6, alignItems: 'flex-start' }}>
+          <Text style={styles.muted}>Es tuyo, pero necesitás Premium para usarlo.</Text>
+          <Pressable style={styles.btnPrimario} onPress={() => router.push('/premium')}>
+            <Text style={{ fontSize: 12 }}>👑</Text>
+            <Text style={styles.btnPrimarioText}>Reactivar Premium</Text>
+          </Pressable>
+        </View>
+      );
   }
 }
 
@@ -306,6 +359,7 @@ const makeStyles = (colors: Tema) =>
   progLabel: { fontSize: 13, fontWeight: '800', color: colors.text },
   grupoTitulo: { fontSize: 16, fontWeight: '800', color: colors.text, marginTop: spacing.sm },
   dragonCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  premiumBadgePos: { position: 'absolute', top: 8, right: 8, zIndex: 2 },
   dragonArt: {
     width: 76,
     height: 76,

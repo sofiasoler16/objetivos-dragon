@@ -1,6 +1,7 @@
 // Reglas de cálculo del % del día y del mensaje del dragón. Funciones PURAS
 // (sin UI, sin red) → testeables. Reglas cerradas (ver 🔒 en CLAUDE.md):
-//  · denominador = obligatorios de hoy (DAILY + SPECIFIC_DAYS que caen hoy), SIN omitidos.
+//  · denominador = obligatorios de hoy (DAILY + SPECIFIC_DAYS que caen hoy), SIN omitidos,
+//    MÁS las TAREAS que vencen ese día (cada tarea = un ítem Sí/No).
 //  · numéricos = crédito proporcional (valor/meta, tope 1).
 //  · omitido queda fuera del numerador Y del denominador.
 //  · WEEKLY_COUNT no entra acá (no penaliza el % del día).
@@ -10,7 +11,7 @@ export type EsperadoHoy = {
   id_objetivo: string;
   nombre: string;
   descripcion: string | null;
-  tipo: 'BOOLEAN' | 'NUMERIC';
+  tipo: 'BOOLEAN' | 'NUMERIC' | 'DURATION';
   frecuencia_tipo: 'DAILY' | 'SPECIFIC_DAYS' | 'WEEKLY_COUNT';
   meta_valor: number | null;
   unidad: string | null;
@@ -21,20 +22,52 @@ export type EsperadoHoy = {
   omitido: boolean;
 };
 
-/** Crédito de un objetivo en [0..1]. Numérico = proporcional; booleano = 0 o 1. */
+/** ¿El tipo acumula un valor (numérico o duración) con crédito proporcional? */
+export function esAcumulable(tipo: EsperadoHoy['tipo']): boolean {
+  return tipo === 'NUMERIC' || tipo === 'DURATION';
+}
+
+/** Crédito de un objetivo en [0..1]. Numérico/duración = proporcional; booleano = 0 o 1. */
 export function creditoObjetivo(o: EsperadoHoy): number {
-  if (o.tipo === 'NUMERIC' && o.meta_valor && o.meta_valor > 0) {
+  if (esAcumulable(o.tipo) && o.meta_valor && o.meta_valor > 0) {
     return Math.min(1, Math.max(0, (o.valor ?? 0) / o.meta_valor));
   }
   return o.completado ? 1 : 0;
 }
 
-/** % del día (0..100). Denominador = obligatorios de hoy sin omitidos. */
-export function porcentajeDia(esperados: EsperadoHoy[]): number {
-  const cuentan = esperados.filter((o) => !o.omitido);
-  if (cuentan.length === 0) return 0;
-  const suma = cuentan.reduce((acc, o) => acc + creditoObjetivo(o), 0);
-  return Math.round((suma / cuentan.length) * 100);
+/** Formatea minutos como tiempo legible: 45 → "45 min", 90 → "1 h 30 min", 120 → "2 h". */
+export function formatearMinutos(min: number): string {
+  const m = Math.max(0, Math.round(min));
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r === 0 ? `${h} h` : `${h} h ${r} min`;
+}
+
+/** Dos incrementos "lindos" en MINUTOS para el objetivo de duración (chico y grande). */
+export function pasosDuracion(meta: number | null): [number, number] {
+  const m = meta && meta > 0 ? meta : 30;
+  if (m <= 15) return [1, 5];
+  if (m <= 45) return [5, 15];
+  if (m <= 120) return [10, 30];
+  return [15, 60];
+}
+
+/**
+ * % del día (0..100). Denominador = obligatorios del día sin omitidos + las TAREAS que vencen
+ * ese día. Cada tarea cuenta como un ítem Sí/No (hecha=1, pendiente=0).
+ */
+export function porcentajeDia(
+  esperados: EsperadoHoy[],
+  tareas: { completada: boolean }[] = [],
+): number {
+  const objetivos = esperados.filter((o) => !o.omitido);
+  const total = objetivos.length + tareas.length;
+  if (total === 0) return 0;
+  const suma =
+    objetivos.reduce((acc, o) => acc + creditoObjetivo(o), 0) +
+    tareas.reduce((acc, t) => acc + (t.completada ? 1 : 0), 0);
+  return Math.round((suma / total) * 100);
 }
 
 // El estado y el mensaje del dragón viven en logic/dragon.ts (estadoDragon / mensajeDragon).

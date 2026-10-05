@@ -1,15 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CelebracionDragon } from '@/components/CelebracionDragon';
 import { Onboarding } from '@/components/Onboarding';
+import { AvisoAsignacion } from '@/components/AvisoAsignacion';
+import { PromoPremium } from '@/components/PromoPremium';
 import { RecordatoriosSync } from '@/components/RecordatoriosSync';
+import { SyncPendientes } from '@/components/SyncPendientes';
 import { useTheme } from '@/components/theme-provider';
 
 export default function TabsLayout() {
   const colors = useTheme();
+  // Alto de la barrita de navegación del sistema (0 si el teléfono no la tiene).
+  const insets = useSafeAreaInsets();
   return (
     <>
       <RecordatoriosSync />
+      <AvisoAsignacion />
+      <SyncPendientes />
       <Onboarding />
+      <PromoPremium />
+      <CelebracionDragon />
       <Tabs
       screenOptions={{
         headerShown: false,
@@ -18,9 +29,10 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.divider,
-          height: 80,
+          // Sumamos el alto de la barrita del sistema para que los íconos no queden tapados.
+          height: 80 + insets.bottom,
           paddingTop: 8,
-          paddingBottom: 8,
+          paddingBottom: 8 + insets.bottom,
         },
         tabBarLabelStyle: { fontSize: 10.5, fontWeight: '700' },
         tabBarActiveBackgroundColor: colors.purple,
@@ -47,6 +59,13 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="grupos"
+        options={{
+          title: 'Grupos',
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
       </Tabs>

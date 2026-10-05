@@ -2,9 +2,9 @@ import { hoyISO } from '@/logic/fecha';
 import {
   type ComidaHC,
   healthConnectDisponible,
-  leerCaloriasDeHoy,
-  leerComidasDeHoy,
-  leerPasosDeHoy,
+  leerCaloriasDeDia,
+  leerComidasDeDia,
+  leerPasosDeDia,
   type MetricaHC,
   pedirPermiso,
   tienePermiso,
@@ -42,26 +42,31 @@ export async function objetivosHealthConnect(): Promise<Objetivo[]> {
 }
 
 /**
- * Lee de Health Connect el valor de HOY (pasos o calorías, según la unidad) y lo
+ * Lee de Health Connect el valor de un día (pasos o calorías, según la unidad) y lo
  * guarda (upsert en registro_objetivo) en cada objetivo con fuente HEALTH_CONNECT.
  * Best-effort: nunca lanza. En Supabase queda solo el valor decidido (ej. 1450 kcal).
  *  · interactivo=true  → dispara el diálogo de permiso si falta (botón "Actualizar").
  *  · interactivo=false → solo sincroniza lo que ya tenga permiso (auto al abrir Hoy).
+ *  · fecha (yyyy-mm-dd) → por defecto HOY; se puede pasar un día anterior para actualizarlo
+ *    (Health Connect guarda el histórico), útil si se pasó el día sin abrir la app.
  */
-export async function sincronizarHealthConnect(interactivo = false): Promise<ResultadoSyncHC> {
+export async function sincronizarHealthConnect(
+  interactivo = false,
+  fecha: string = hoyISO(),
+): Promise<ResultadoSyncHC> {
   try {
     const objetivos = await objetivosHealthConnect();
     if (objetivos.length === 0) return { ok: false, motivo: 'sin-objetivo', objetivos: 0 };
     if (!(await healthConnectDisponible()))
       return { ok: false, motivo: 'no-disponible', objetivos: objetivos.length };
 
-    const fecha = hoyISO();
     let algo = false;
     for (const o of objetivos) {
       const metrica = metricaDeUnidad(o.unidad);
       const permiso = interactivo ? await pedirPermiso(metrica) : await tienePermiso(metrica);
       if (!permiso) continue;
-      const valor = metrica === 'CALORIES' ? await leerCaloriasDeHoy() : await leerPasosDeHoy();
+      const valor =
+        metrica === 'CALORIES' ? await leerCaloriasDeDia(fecha) : await leerPasosDeDia(fecha);
       await registrarValorNumerico(o.id_objetivo, fecha, valor, o.meta_valor);
       algo = true;
     }
@@ -75,15 +80,19 @@ export async function sincronizarHealthConnect(interactivo = false): Promise<Res
 export type ResultadoComidas = { ok: boolean; motivo?: MotivoSync; comidas: ComidaHC[] };
 
 /**
- * Comidas de HOY desde Health Connect (para el detalle del objetivo de calorías).
+ * Comidas de un día desde Health Connect (para el detalle del objetivo de calorías).
  *  · interactivo=true dispara el permiso de nutrición si falta.
+ *  · fecha (yyyy-mm-dd) → por defecto HOY; se puede pasar un día anterior.
  */
-export async function comidasDeHoy(interactivo = false): Promise<ResultadoComidas> {
+export async function comidasDeHoy(
+  interactivo = false,
+  fecha: string = hoyISO(),
+): Promise<ResultadoComidas> {
   try {
     if (!(await healthConnectDisponible())) return { ok: false, motivo: 'no-disponible', comidas: [] };
     const permiso = interactivo ? await pedirPermiso('CALORIES') : await tienePermiso('CALORIES');
     if (!permiso) return { ok: false, motivo: 'sin-permiso', comidas: [] };
-    return { ok: true, comidas: await leerComidasDeHoy() };
+    return { ok: true, comidas: await leerComidasDeDia(fecha) };
   } catch {
     return { ok: false, motivo: 'error', comidas: [] };
   }

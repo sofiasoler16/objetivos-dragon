@@ -13,6 +13,9 @@ export type TipoObjetivo = 'BOOLEAN' | 'NUMERIC';
 export type FrecuenciaTipo = 'DAILY' | 'SPECIFIC_DAYS' | 'WEEKLY_COUNT';
 export type Prioridad = 'BAJA' | 'MEDIA' | 'ALTA';
 
+/** Horario de un día puntual (para SPECIFIC_DAYS: cada día puede caer a distinta hora). */
+export type HorarioDia = { dia: number; hora_inicio: string; hora_fin: string };
+
 export type ObjetivoPropuesto = {
   nombre: string;
   descripcion: string | null;
@@ -25,9 +28,11 @@ export type ObjetivoPropuesto = {
   id_categoria: string | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
-  // "Con horario": si vienen ambos, se agenda como evento en el calendario. Null → objetivo del día.
-  hora_inicio: string | null; // HH:MM
-  hora_fin: string | null; // HH:MM
+  // "Con horario" (se agenda como evento). DAILY usa hora_inicio/hora_fin (una sola).
+  // SPECIFIC_DAYS usa horarios_dia (una hora por día). Null → objetivo del día sin evento.
+  hora_inicio: string | null; // HH:MM (DAILY)
+  hora_fin: string | null; // HH:MM (DAILY)
+  horarios_dia: HorarioDia[] | null; // SPECIFIC_DAYS
 };
 
 export type TareaPropuesta = {
@@ -36,10 +41,7 @@ export type TareaPropuesta = {
   prioridad: Prioridad;
   id_categoria: string | null;
   fecha_limite: string | null;
-  hora_limite: string | null;
-  // "Con horario": bloque de tiempo para agendar como evento. Null → tarea normal.
-  hora_inicio: string | null; // HH:MM
-  hora_fin: string | null; // HH:MM
+  hora_limite: string | null; // solo vencimiento (deadline). Las tareas NO llevan bloque de horario.
 };
 
 export type PropuestaIA = {
@@ -104,12 +106,35 @@ function saneaObjetivo(raw: any, categoriaIds: Set<string>): ObjetivoPropuesto |
   }
 
   const idCat = texto(raw?.id_categoria);
-  // El horario solo tiene sentido con día fijo (DAILY / SPECIFIC_DAYS). WEEKLY_COUNT no tiene
-  // día concreto → no se puede volver evento, así que se ignora la hora.
-  const horario =
-    frecuencia === 'WEEKLY_COUNT'
-      ? { inicio: null, fin: null }
-      : bloque(raw?.hora_inicio, raw?.hora_fin);
+  // Horario: DAILY usa una sola hora (hora_inicio/hora_fin). SPECIFIC_DAYS usa horarios_dia
+  // (una hora por día). WEEKLY_COUNT no tiene día fijo → sin horario.
+  let hInicio: string | null = null;
+  let hFin: string | null = null;
+  let horariosDia: HorarioDia[] | null = null;
+
+  if (frecuencia === 'DAILY') {
+    const b = bloque(raw?.hora_inicio, raw?.hora_fin);
+    hInicio = b.inicio;
+    hFin = b.fin;
+  } else if (frecuencia === 'SPECIFIC_DAYS') {
+    const arr: unknown[] = Array.isArray(raw?.horarios_dia) ? raw.horarios_dia : [];
+    const hd: HorarioDia[] = [];
+    for (const h of arr) {
+      const d = Number((h as any)?.dia);
+      if (!Number.isInteger(d) || !(dias ?? []).includes(d)) continue;
+      const b = bloque((h as any)?.hora_inicio, (h as any)?.hora_fin);
+      if (b.inicio && b.fin && !hd.some((x) => x.dia === d))
+        hd.push({ dia: d, hora_inicio: b.inicio, hora_fin: b.fin });
+    }
+    // Respaldo: si la IA mandó una sola hora suelta, la aplicamos a todos los días.
+    if (hd.length === 0) {
+      const b = bloque(raw?.hora_inicio, raw?.hora_fin);
+      if (b.inicio && b.fin)
+        for (const d of dias ?? []) hd.push({ dia: d, hora_inicio: b.inicio, hora_fin: b.fin });
+    }
+    horariosDia = hd.length ? hd.sort((a, b2) => a.dia - b2.dia) : null;
+  }
+
   return {
     nombre,
     descripcion: texto(raw?.descripcion),
@@ -122,8 +147,9 @@ function saneaObjetivo(raw: any, categoriaIds: Set<string>): ObjetivoPropuesto |
     id_categoria: idCat && categoriaIds.has(idCat) ? idCat : null, // 🔒 solo categorías reales
     fecha_inicio: fecha(raw?.fecha_inicio),
     fecha_fin: fecha(raw?.fecha_fin),
-    hora_inicio: horario.inicio,
-    hora_fin: horario.fin,
+    hora_inicio: hInicio,
+    hora_fin: hFin,
+    horarios_dia: horariosDia,
   };
 }
 
@@ -131,7 +157,6 @@ function saneaTarea(raw: any, categoriaIds: Set<string>): TareaPropuesta | null 
   const titulo = texto(raw?.titulo);
   if (!titulo) return null;
   const idCat = texto(raw?.id_categoria);
-  const horario = bloque(raw?.hora_inicio, raw?.hora_fin);
   return {
     titulo,
     descripcion: texto(raw?.descripcion),
@@ -139,8 +164,6 @@ function saneaTarea(raw: any, categoriaIds: Set<string>): TareaPropuesta | null 
     id_categoria: idCat && categoriaIds.has(idCat) ? idCat : null,
     fecha_limite: fecha(raw?.fecha_limite),
     hora_limite: hora(raw?.hora_limite),
-    hora_inicio: horario.inicio,
-    hora_fin: horario.fin,
   };
 }
 
@@ -170,22 +193,23 @@ export function conflicto(
  * Vacío si no tiene horario o es WEEKLY_COUNT (sin día fijo).
  */
 export function ocurrenciasObjetivo(o: ObjetivoPropuesto, hoy: string, dias = 21): BloqueOcupado[] {
-  if (!o.hora_inicio || !o.hora_fin || o.frecuencia_tipo === 'WEEKLY_COUNT') return [];
+  if (o.frecuencia_tipo === 'WEEKLY_COUNT') return [];
   const base = o.fecha_inicio && o.fecha_inicio > hoy ? o.fecha_inicio : hoy;
   const fin = sumarDiasISO(hoy, dias);
   const out: BloqueOcupado[] = [];
+  const porDia = new Map((o.horarios_dia ?? []).map((h) => [h.dia, h]));
+
   for (let f = base; f < fin; f = sumarDiasISO(f, 1)) {
     if (o.fecha_fin && f > o.fecha_fin) break;
-    const cae = o.frecuencia_tipo === 'DAILY' || (o.dias ?? []).includes(diaSemanaISO(f));
-    if (cae) out.push({ titulo: o.nombre, fecha: f, desde: o.hora_inicio, hasta: o.hora_fin });
+    if (o.frecuencia_tipo === 'DAILY') {
+      if (o.hora_inicio && o.hora_fin)
+        out.push({ titulo: o.nombre, fecha: f, desde: o.hora_inicio, hasta: o.hora_fin });
+    } else {
+      const h = porDia.get(diaSemanaISO(f));
+      if (h) out.push({ titulo: o.nombre, fecha: f, desde: h.hora_inicio, hasta: h.hora_fin });
+    }
   }
   return out;
-}
-
-/** Fecha+hora que ocupa una TAREA propuesta (una sola, en su fecha límite). */
-export function ocurrenciasTarea(t: TareaPropuesta): BloqueOcupado[] {
-  if (!t.hora_inicio || !t.hora_fin || !t.fecha_limite) return [];
-  return [{ titulo: t.titulo, fecha: t.fecha_limite, desde: t.hora_inicio, hasta: t.hora_fin }];
 }
 
 /** Primer título con el que un objetivo/tarea se solapa (o null). Chequea todas sus ocurrencias. */
@@ -193,6 +217,22 @@ export function primerConflicto(ocurrencias: BloqueOcupado[], ocupado: BloqueOcu
   for (const oc of ocurrencias) {
     const c = conflicto(oc.fecha, oc.desde, oc.hasta, ocupado);
     if (c) return c;
+  }
+  return null;
+}
+
+/**
+ * Primer BLOQUE ocupado con el que se solapa (con fecha y rango, para el detalle
+ * "…el viernes de 16 a 18"), o null si no hay conflicto.
+ */
+export function detalleConflicto(
+  ocurrencias: BloqueOcupado[],
+  ocupado: BloqueOcupado[],
+): BloqueOcupado | null {
+  for (const oc of ocurrencias) {
+    for (const c of ocupado) {
+      if (c.fecha === oc.fecha && oc.desde < c.hasta && c.desde < oc.hasta) return c;
+    }
   }
   return null;
 }
